@@ -143,6 +143,25 @@
     </main>
   </div>
 
+  <!-- ══════ Browser View ══════ -->
+  <div id="browser-view" class="browser-view hidden">
+    <div class="browser-toolbar">
+      <button class="browser-btn" id="browser-back" title="뒤로"><i class="ri-arrow-left-line"></i></button>
+      <button class="browser-btn" id="browser-forward" title="앞으로"><i class="ri-arrow-right-line"></i></button>
+      <button class="browser-btn" id="browser-refresh" title="새로고침"><i class="ri-refresh-line"></i></button>
+      <div class="browser-url-bar" id="browser-url"></div>
+      <button class="browser-btn" id="browser-newtab" title="새 탭에서 열기"><i class="ri-external-link-line"></i></button>
+      <button class="browser-btn browser-btn-close" id="browser-close" title="닫기"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="browser-iframe-wrap">
+      <iframe id="browser-iframe" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+      <div id="browser-loading" class="browser-loading hidden">
+        <div class="browser-spinner"></div>
+        <span>로딩 중...</span>
+      </div>
+    </div>
+  </div>
+
   <!-- ══════ Settings Panel ══════ -->
   <div id="settings-panel" class="side-panel hidden">
     <div class="panel-header">
@@ -235,6 +254,16 @@
         </div>
         <div class="input-group"><i class="ri-heart-pulse-line"></i><input type="url" id="bm-health" placeholder="상태 확인 URL (선택사항)" /></div>
         <div class="input-group"><i class="ri-image-line"></i><input type="url" id="bm-icon" placeholder="아이콘 URL (선택사항)" /></div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">열기 방식</label>
+            <select id="bm-open-mode" class="select-input">
+              <option value="auto">자동 (iframe 시도)</option>
+              <option value="internal">항상 내장 브라우저</option>
+              <option value="external">항상 새 탭</option>
+            </select>
+          </div>
+        </div>
         <label class="checkbox-label hidden" id="bm-shared-wrap">
           <input type="checkbox" id="bm-shared" />
           <span>공통 북마크로 등록 (모든 사용자에게 표시)</span>

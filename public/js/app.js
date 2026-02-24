@@ -6,6 +6,7 @@
   let healthCache = {};
   let dragSrcId = null;
   let activeTab = 'bookmarks';
+  let browserCurrentUrl = '';
 
   // ═══════ Init ═══════
 
@@ -158,7 +159,7 @@
       card.addEventListener('click', e => {
         if (e.target.closest('.bookmark-actions')) return;
         const bm = [...bookmarks, ...sharedBookmarks].find(x => x.id === card.dataset.id);
-        if (bm) window.open(bm.url, '_blank');
+        if (bm) openInBrowser(bm);
       });
 
       card.addEventListener('dragstart', e => {
@@ -267,6 +268,7 @@
     document.getElementById('bm-submit-btn').textContent = '추가';
     document.getElementById('bookmark-form').reset();
     document.getElementById('bm-edit-id').value = '';
+    document.getElementById('bm-open-mode').value = 'auto';
     const sharedWrap = document.getElementById('bm-shared-wrap');
     if (Auth.isAdmin()) sharedWrap.classList.remove('hidden');
     else sharedWrap.classList.add('hidden');
@@ -287,6 +289,7 @@
     document.getElementById('bm-type').value = bm.service_type || 'web';
     document.getElementById('bm-health').value = bm.health_check_url || '';
     document.getElementById('bm-icon').value = bm.icon_url || '';
+    document.getElementById('bm-open-mode').value = bm.open_mode || 'auto';
     const sharedWrap = document.getElementById('bm-shared-wrap');
     if (Auth.isAdmin()) sharedWrap.classList.remove('hidden');
     else sharedWrap.classList.add('hidden');
@@ -315,6 +318,7 @@
       health_check_url: document.getElementById('bm-health').value.trim() || null,
       icon_url: document.getElementById('bm-icon').value.trim() || null,
       is_shared: Auth.isAdmin() ? document.getElementById('bm-shared').checked : false,
+      open_mode: document.getElementById('bm-open-mode').value,
     };
     try {
       if (id) {
@@ -539,6 +543,91 @@
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
+  // ═══════ Browser View ═══════
+
+  function openInBrowser(bm) {
+    const mode = bm.open_mode || 'auto';
+    const url = bm.url;
+
+    if (mode === 'external') {
+      window.open(url, '_blank');
+      return;
+    }
+
+    const browserView = document.getElementById('browser-view');
+    const iframe = document.getElementById('browser-iframe');
+    const loading = document.getElementById('browser-loading');
+    const urlBar = document.getElementById('browser-url');
+
+    browserCurrentUrl = url;
+    urlBar.textContent = url;
+    loading.classList.remove('hidden');
+    browserView.classList.remove('hidden');
+
+    iframe.src = '';
+
+    let loaded = false;
+    let fallbackTimer = null;
+
+    const onLoad = () => {
+      loaded = true;
+      clearTimeout(fallbackTimer);
+      loading.classList.add('hidden');
+      cleanup();
+    };
+
+    const onError = () => {
+      if (loaded) return;
+      clearTimeout(fallbackTimer);
+      cleanup();
+      browserFallback(url);
+    };
+
+    const cleanup = () => {
+      iframe.removeEventListener('load', onLoad);
+      iframe.removeEventListener('error', onError);
+    };
+
+    iframe.addEventListener('load', onLoad);
+    iframe.addEventListener('error', onError);
+
+    if (mode === 'auto') {
+      fallbackTimer = setTimeout(() => {
+        if (!loaded) {
+          try {
+            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (!doc || !doc.body || doc.body.innerHTML === '') {
+              cleanup();
+              browserFallback(url);
+              return;
+            }
+          } catch {
+            // cross-origin: iframe loaded but we can't access - that's OK
+          }
+          loading.classList.add('hidden');
+        }
+      }, 4000);
+    }
+
+    iframe.src = url;
+  }
+
+  function browserFallback(url) {
+    closeBrowser();
+    window.open(url, '_blank');
+    UI.showToast('이 사이트는 내장 브라우저에서 열 수 없어 새 탭으로 이동합니다', 'info');
+  }
+
+  function closeBrowser() {
+    const browserView = document.getElementById('browser-view');
+    const iframe = document.getElementById('browser-iframe');
+    const loading = document.getElementById('browser-loading');
+    iframe.src = 'about:blank';
+    loading.classList.add('hidden');
+    browserView.classList.add('hidden');
+    browserCurrentUrl = '';
+  }
+
   function handleUnlock() {
     const input = document.getElementById('lock-pin-input');
     if (Auth.tryUnlock(input.value)) {
@@ -644,6 +733,27 @@
     // Modal close
     document.querySelectorAll('.modal-close, [data-modal]').forEach(btn => {
       btn.addEventListener('click', () => { if (btn.dataset.modal) UI.closeModal(btn.dataset.modal); });
+    });
+
+    // Browser View
+    document.getElementById('browser-close').addEventListener('click', closeBrowser);
+    document.getElementById('browser-newtab').addEventListener('click', () => {
+      if (browserCurrentUrl) window.open(browserCurrentUrl, '_blank');
+    });
+    document.getElementById('browser-refresh').addEventListener('click', () => {
+      const iframe = document.getElementById('browser-iframe');
+      if (iframe.src && iframe.src !== 'about:blank') {
+        const loading = document.getElementById('browser-loading');
+        loading.classList.remove('hidden');
+        iframe.src = iframe.src;
+        iframe.addEventListener('load', () => loading.classList.add('hidden'), { once: true });
+      }
+    });
+    document.getElementById('browser-back').addEventListener('click', () => {
+      try { document.getElementById('browser-iframe').contentWindow.history.back(); } catch {}
+    });
+    document.getElementById('browser-forward').addEventListener('click', () => {
+      try { document.getElementById('browser-iframe').contentWindow.history.forward(); } catch {}
     });
 
     // Search

@@ -1405,6 +1405,99 @@ body {
   box-shadow: 0 0 0 3px rgba(77,168,218,0.15);
 }
 
+/* ═══════════════ Browser View ═══════════════ */
+.browser-view {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+}
+
+.browser-toolbar {
+  height: 48px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.browser-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.browser-btn:hover { background: var(--primary-bg); color: var(--primary); }
+.browser-btn-close:hover { background: var(--danger-light); color: var(--danger); }
+
+.browser-url-bar {
+  flex: 1;
+  height: 32px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0 14px;
+  font-size: 13px;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  margin: 0 4px;
+  user-select: all;
+}
+
+.browser-iframe-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.browser-iframe-wrap iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: var(--white);
+}
+
+.browser-loading {
+  position: absolute;
+  inset: 0;
+  background: rgba(240, 246, 250, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-light);
+  font-size: 14px;
+}
+
+.browser-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
 /* ═══════════════ Responsive Additions ═══════════════ */
 @media (max-width: 768px) {
   .main-tab-bar { padding: 0 10px; }

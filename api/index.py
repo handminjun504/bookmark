@@ -230,6 +230,7 @@ async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
         "health_check_url": req.health_check_url,
         "icon_url": req.icon_url,
         "is_shared": req.is_shared,
+        "open_mode": req.open_mode,
     }
     result = db.table("bookmarks").insert(data).execute()
     return result.data[0]
