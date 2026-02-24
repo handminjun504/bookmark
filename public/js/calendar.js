@@ -1,7 +1,18 @@
 const Calendar = (() => {
   let currentYear, currentMonth;
   let events = [];
+  let weekTasks = [];
   let notifyTimers = [];
+
+  const DAY_COLORS = [
+    { cls: 'task-day-sun', label: '일' },
+    { cls: 'task-day-mon', label: '월' },
+    { cls: 'task-day-tue', label: '화' },
+    { cls: 'task-day-wed', label: '수' },
+    { cls: 'task-day-thu', label: '목' },
+    { cls: 'task-day-fri', label: '금' },
+    { cls: 'task-day-sat', label: '토' },
+  ];
 
   function init() {
     const now = new Date();
@@ -20,6 +31,10 @@ const Calendar = (() => {
         dot.classList.add('active');
         document.getElementById('evt-color').value = dot.dataset.color;
       });
+    });
+
+    document.getElementById('evt-recurrence').addEventListener('change', e => {
+      document.getElementById('evt-recurrence-end-wrap').style.display = e.target.value ? '' : 'none';
     });
 
     requestNotificationPermission();
@@ -50,6 +65,7 @@ const Calendar = (() => {
     }
     render();
     scheduleNotifications();
+    loadWeekTasks();
   }
 
   function render() {
@@ -79,7 +95,10 @@ const Calendar = (() => {
         html += '<div class="cal-events">';
         dayEvents.slice(0, 3).forEach(ev => {
           const time = ev.start_time ? ev.start_time.substring(0, 5) + ' ' : '';
-          html += `<div class="cal-event-bar" style="background:${ev.color}" data-id="${ev.id}" title="${time}${ev.title}">${time}${escapeHtml(ev.title)}</div>`;
+          const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
+          const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
+          const doneClass = ev.is_done ? ' cal-event-done' : '';
+          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color}" data-id="${ev.id}" title="${time}${ev.title}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}</div>`;
         });
         if (dayEvents.length > 3) {
           html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
@@ -103,6 +122,79 @@ const Calendar = (() => {
     });
   }
 
+  // ── Task Sidebar ──
+
+  async function loadWeekTasks() {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      weekTasks = await Auth.request(`/events/week?date_str=${today}`);
+    } catch {
+      weekTasks = [];
+    }
+    renderTaskSidebar();
+  }
+
+  function renderTaskSidebar() {
+    const container = document.getElementById('task-list');
+    if (weekTasks.length === 0) {
+      container.innerHTML = '<div class="task-empty"><i class="ri-checkbox-circle-line"></i><p>이번 주 업무가 없습니다</p></div>';
+      return;
+    }
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+    const grouped = {};
+    weekTasks.forEach(t => {
+      const d = t.start_date;
+      if (!grouped[d]) grouped[d] = [];
+      grouped[d].push(t);
+    });
+
+    let html = '';
+    Object.keys(grouped).sort().forEach(dateKey => {
+      const dt = new Date(dateKey + 'T00:00:00');
+      const dow = dt.getDay();
+      const dayInfo = DAY_COLORS[dow];
+      const isToday = dateKey === todayStr;
+      const dayLabel = `${dt.getMonth() + 1}/${dt.getDate()} (${dayInfo.label})`;
+
+      html += `<div class="task-day-group ${dayInfo.cls}${isToday ? ' task-day-today' : ''}">`;
+      html += `<div class="task-day-label">${dayLabel}${isToday ? ' <span class="task-today-badge">오늘</span>' : ''}</div>`;
+
+      grouped[dateKey].forEach(t => {
+        const checked = t.is_done ? 'checked' : '';
+        const doneClass = t.is_done ? ' task-done' : '';
+        const time = t.start_time ? t.start_time.substring(0, 5) : '';
+        html += `<div class="task-item${doneClass}">
+          <input type="checkbox" class="task-check" data-id="${t.id}" ${checked} />
+          <div class="task-item-body">
+            <span class="task-item-title">${escapeHtml(t.title)}</span>
+            ${time ? `<span class="task-item-time">${time}</span>` : ''}
+          </div>
+          <span class="task-color-dot" style="background:${t.color}"></span>
+        </div>`;
+      });
+      html += '</div>';
+    });
+
+    container.innerHTML = html;
+
+    container.querySelectorAll('.task-check').forEach(cb => {
+      cb.addEventListener('change', async () => {
+        try {
+          await Auth.request(`/events/${cb.dataset.id}/done`, { method: 'PATCH' });
+          loadWeekTasks();
+          load();
+        } catch (err) {
+          UI.showToast(err.message, 'error');
+        }
+      });
+    });
+  }
+
+  // ── Event Modal ──
+
   function openAddEvent(dateStr) {
     document.getElementById('event-modal-title').textContent = '일정 추가';
     document.getElementById('evt-submit-btn').textContent = '추가';
@@ -111,6 +203,7 @@ const Calendar = (() => {
     document.getElementById('evt-date').value = dateStr || '';
     document.getElementById('evt-color').value = '#4DA8DA';
     document.getElementById('evt-edit-id').value = '';
+    document.getElementById('evt-recurrence-end-wrap').style.display = 'none';
     resetColorPicker('evt-color-picker', '#4DA8DA');
     UI.openModal('event-modal');
   }
@@ -128,6 +221,10 @@ const Calendar = (() => {
     document.getElementById('evt-end-date').value = ev.end_date || '';
     document.getElementById('evt-desc').value = ev.description || '';
     document.getElementById('evt-remind').value = ev.remind_minutes != null ? String(ev.remind_minutes) : '';
+    document.getElementById('evt-recurrence').value = ev.recurrence_type || '';
+    document.getElementById('evt-recurrence-end').value = ev.recurrence_end || '';
+    document.getElementById('evt-recurrence-end-wrap').style.display = ev.recurrence_type ? '' : 'none';
+    document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-color').value = ev.color || '#4DA8DA';
     resetColorPicker('evt-color-picker', ev.color || '#4DA8DA');
     UI.openModal('event-modal');
@@ -143,6 +240,7 @@ const Calendar = (() => {
     e.preventDefault();
     const id = document.getElementById('evt-edit-id').value;
     const remindVal = document.getElementById('evt-remind').value;
+    const recurrence = document.getElementById('evt-recurrence').value;
     const data = {
       title: document.getElementById('evt-title').value.trim(),
       start_date: document.getElementById('evt-date').value,
@@ -151,6 +249,10 @@ const Calendar = (() => {
       description: document.getElementById('evt-desc').value.trim() || null,
       color: document.getElementById('evt-color').value,
       remind_minutes: remindVal !== '' ? parseInt(remindVal, 10) : null,
+      recurrence_type: recurrence || null,
+      recurrence_end: recurrence ? (document.getElementById('evt-recurrence-end').value || null) : null,
+      recurrence_interval: 1,
+      is_task: document.getElementById('evt-is-task').checked,
     };
 
     try {
@@ -194,13 +296,11 @@ const Calendar = (() => {
   function scheduleNotifications() {
     notifyTimers.forEach(t => clearTimeout(t));
     notifyTimers = [];
-
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
     const now = new Date();
     events.forEach(ev => {
       if (ev.remind_minutes == null || !ev.start_time) return;
-
       const eventTime = new Date(`${ev.start_date}T${ev.start_time}`);
       const notifyTime = new Date(eventTime.getTime() - ev.remind_minutes * 60000);
       const delay = notifyTime.getTime() - now.getTime();

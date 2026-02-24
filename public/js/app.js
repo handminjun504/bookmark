@@ -267,6 +267,10 @@
     document.getElementById('bm-submit-btn').textContent = '추가';
     document.getElementById('bookmark-form').reset();
     document.getElementById('bm-edit-id').value = '';
+    const sharedWrap = document.getElementById('bm-shared-wrap');
+    if (Auth.isAdmin()) sharedWrap.classList.remove('hidden');
+    else sharedWrap.classList.add('hidden');
+    document.getElementById('bm-shared').checked = false;
     populateCategorySelect();
     UI.openModal('bookmark-modal');
   }
@@ -283,6 +287,10 @@
     document.getElementById('bm-type').value = bm.service_type || 'web';
     document.getElementById('bm-health').value = bm.health_check_url || '';
     document.getElementById('bm-icon').value = bm.icon_url || '';
+    const sharedWrap = document.getElementById('bm-shared-wrap');
+    if (Auth.isAdmin()) sharedWrap.classList.remove('hidden');
+    else sharedWrap.classList.add('hidden');
+    document.getElementById('bm-shared').checked = bm.is_shared || false;
     populateCategorySelect(bm.category_id);
     UI.openModal('bookmark-modal');
   }
@@ -306,6 +314,7 @@
       service_type: document.getElementById('bm-type').value,
       health_check_url: document.getElementById('bm-health').value.trim() || null,
       icon_url: document.getElementById('bm-icon').value.trim() || null,
+      is_shared: Auth.isAdmin() ? document.getElementById('bm-shared').checked : false,
     };
     try {
       if (id) {

@@ -38,26 +38,15 @@
           <input type="checkbox" id="login-remember" />
           <span>이 PC 기억하기 (자동 로그인)</span>
         </label>
-        <button type="submit" class="btn btn-primary btn-full" id="login-btn">
-          로그인
-        </button>
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">로그인</button>
         <div id="login-error" class="error-msg hidden"></div>
       </form>
       <div id="setup-section" class="hidden">
         <div class="divider"><span>최초 설정</span></div>
         <form id="setup-form" autocomplete="off">
-          <div class="input-group">
-            <i class="ri-admin-line"></i>
-            <input type="text" id="setup-username" placeholder="관리자 아이디" autocomplete="username" required />
-          </div>
-          <div class="input-group">
-            <i class="ri-lock-line"></i>
-            <input type="password" id="setup-password" placeholder="관리자 비밀번호" autocomplete="new-password" required />
-          </div>
-          <div class="input-group">
-            <i class="ri-user-heart-line"></i>
-            <input type="text" id="setup-display" placeholder="표시 이름" required />
-          </div>
+          <div class="input-group"><i class="ri-admin-line"></i><input type="text" id="setup-username" placeholder="관리자 아이디" autocomplete="username" required /></div>
+          <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="setup-password" placeholder="관리자 비밀번호" autocomplete="new-password" required /></div>
+          <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="setup-display" placeholder="표시 이름" required /></div>
           <button type="submit" class="btn btn-accent btn-full">관리자 계정 생성</button>
         </form>
       </div>
@@ -66,7 +55,6 @@
 
   <!-- ══════ Dashboard Screen ══════ -->
   <div id="dashboard-screen" class="screen hidden">
-    <!-- Header -->
     <header class="app-header">
       <div class="header-left">
         <i class="ri-link-m header-logo-icon"></i>
@@ -79,15 +67,9 @@
         </div>
       </div>
       <div class="header-right">
-        <button class="icon-btn" id="btn-add-bookmark" title="북마크 추가">
-          <i class="ri-add-circle-line"></i>
-        </button>
-        <button class="icon-btn" id="btn-settings" title="설정">
-          <i class="ri-settings-3-line"></i>
-        </button>
-        <button class="icon-btn" id="btn-admin" title="관리자" style="display:none">
-          <i class="ri-admin-line"></i>
-        </button>
+        <button class="icon-btn" id="btn-add-bookmark" title="북마크 추가"><i class="ri-add-circle-line"></i></button>
+        <button class="icon-btn" id="btn-settings" title="설정"><i class="ri-settings-3-line"></i></button>
+        <button class="icon-btn" id="btn-admin" title="관리자" style="display:none"><i class="ri-admin-line"></i></button>
         <div class="user-badge" id="user-badge">
           <span id="user-display-name"></span>
           <i class="ri-arrow-down-s-line"></i>
@@ -99,67 +81,64 @@
       </div>
     </header>
 
-    <!-- Main Tab Bar -->
     <nav class="main-tab-bar" id="main-tab-bar">
-      <button class="main-tab active" data-tab="bookmarks">
-        <i class="ri-bookmark-line"></i><span>북마크</span>
-      </button>
-      <button class="main-tab" data-tab="calendar">
-        <i class="ri-calendar-line"></i><span>캘린더</span>
-      </button>
-      <button class="main-tab" data-tab="memos">
-        <i class="ri-sticky-note-line"></i><span>메모</span>
-      </button>
+      <button class="main-tab active" data-tab="bookmarks"><i class="ri-bookmark-line"></i><span>북마크</span></button>
+      <button class="main-tab" data-tab="calendar"><i class="ri-calendar-line"></i><span>캘린더</span></button>
+      <button class="main-tab" data-tab="memos"><i class="ri-sticky-note-line"></i><span>메모</span></button>
     </nav>
 
     <!-- Tab: Bookmarks -->
     <main class="tab-content active" id="tab-bookmarks">
       <div class="category-tabs" id="category-tabs">
-        <button class="cat-tab active" data-cat="all">
-          <i class="ri-apps-line"></i> 전체
-        </button>
+        <button class="cat-tab active" data-cat="all"><i class="ri-apps-line"></i> 전체</button>
       </div>
       <div class="bookmarks-grid" id="bookmarks-grid"></div>
       <div class="empty-state hidden" id="empty-state">
         <i class="ri-bookmark-line"></i>
         <p>등록된 북마크가 없습니다</p>
-        <button class="btn btn-primary" id="btn-empty-add">
-          <i class="ri-add-line"></i> 첫 번째 북마크 추가
-        </button>
+        <button class="btn btn-primary" id="btn-empty-add"><i class="ri-add-line"></i> 첫 번째 북마크 추가</button>
       </div>
     </main>
 
-    <!-- Tab: Calendar -->
+    <!-- Tab: Calendar (with task sidebar) -->
     <main class="tab-content" id="tab-calendar">
-      <div class="calendar-header">
-        <button class="icon-btn" id="cal-prev"><i class="ri-arrow-left-s-line"></i></button>
-        <h2 id="cal-month-title"></h2>
-        <button class="icon-btn" id="cal-next"><i class="ri-arrow-right-s-line"></i></button>
-        <button class="btn btn-sm btn-outline" id="cal-today">오늘</button>
+      <div class="calendar-layout">
+        <!-- Task Sidebar -->
+        <aside class="task-sidebar" id="task-sidebar">
+          <div class="task-sidebar-header">
+            <h3><i class="ri-list-check-2"></i> 이번 주 업무</h3>
+          </div>
+          <div class="task-sidebar-body" id="task-list"></div>
+        </aside>
+        <!-- Calendar Main -->
+        <div class="calendar-main">
+          <div class="calendar-header">
+            <button class="icon-btn" id="cal-prev"><i class="ri-arrow-left-s-line"></i></button>
+            <h2 id="cal-month-title"></h2>
+            <button class="icon-btn" id="cal-next"><i class="ri-arrow-right-s-line"></i></button>
+            <button class="btn btn-sm btn-outline" id="cal-today">오늘</button>
+          </div>
+          <div class="calendar-weekdays">
+            <span class="wd sun">일</span><span class="wd">월</span><span class="wd">화</span>
+            <span class="wd">수</span><span class="wd">목</span><span class="wd">금</span>
+            <span class="wd sat">토</span>
+          </div>
+          <div class="calendar-grid" id="calendar-grid"></div>
+        </div>
       </div>
-      <div class="calendar-weekdays">
-        <span class="wd sun">일</span><span class="wd">월</span><span class="wd">화</span>
-        <span class="wd">수</span><span class="wd">목</span><span class="wd">금</span>
-        <span class="wd sat">토</span>
-      </div>
-      <div class="calendar-grid" id="calendar-grid"></div>
     </main>
 
     <!-- Tab: Memos -->
     <main class="tab-content" id="tab-memos">
       <div class="memos-header">
         <h2><i class="ri-sticky-note-line"></i> 메모</h2>
-        <button class="btn btn-primary btn-sm" id="btn-add-memo">
-          <i class="ri-add-line"></i> 새 메모
-        </button>
+        <button class="btn btn-primary btn-sm" id="btn-add-memo"><i class="ri-add-line"></i> 새 메모</button>
       </div>
       <div class="memos-grid" id="memos-grid"></div>
       <div class="empty-state hidden" id="memo-empty-state">
         <i class="ri-sticky-note-line"></i>
         <p>메모가 없습니다</p>
-        <button class="btn btn-primary" id="btn-memo-empty-add">
-          <i class="ri-add-line"></i> 첫 번째 메모 작성
-        </button>
+        <button class="btn btn-primary" id="btn-memo-empty-add"><i class="ri-add-line"></i> 첫 번째 메모 작성</button>
       </div>
     </main>
   </div>
@@ -173,10 +152,7 @@
     <div class="panel-body">
       <div class="setting-group">
         <h3>프로필</h3>
-        <div class="input-group">
-          <i class="ri-user-line"></i>
-          <input type="text" id="setting-display-name" placeholder="표시 이름" />
-        </div>
+        <div class="input-group"><i class="ri-user-line"></i><input type="text" id="setting-display-name" placeholder="표시 이름" /></div>
         <button class="btn btn-primary btn-sm" id="btn-save-profile">저장</button>
       </div>
       <form class="setting-group" id="lock-settings-form" autocomplete="off" onsubmit="return false">
@@ -189,26 +165,18 @@
         <div id="lock-options">
           <label class="field-label">잠금 시간 (분)</label>
           <select id="setting-lock-timeout" class="select-input">
-            <option value="60">1분</option>
-            <option value="180">3분</option>
-            <option value="300" selected>5분</option>
-            <option value="600">10분</option>
-            <option value="900">15분</option>
+            <option value="60">1분</option><option value="180">3분</option><option value="300" selected>5분</option>
+            <option value="600">10분</option><option value="900">15분</option>
           </select>
           <label class="field-label">잠금 해제 PIN (숫자 1~4자리)</label>
-          <div class="input-group">
-            <i class="ri-lock-password-line"></i>
-            <input type="password" id="setting-pin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="PIN 입력" autocomplete="off" />
-          </div>
+          <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="setting-pin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="PIN 입력" autocomplete="off" /></div>
         </div>
         <button class="btn btn-primary btn-sm" id="btn-save-lock">저장</button>
       </form>
       <div class="setting-group">
         <h3>카테고리 관리</h3>
         <div id="category-list" class="category-manage-list"></div>
-        <button class="btn btn-outline btn-sm" id="btn-add-category">
-          <i class="ri-add-line"></i> 카테고리 추가
-        </button>
+        <button class="btn btn-outline btn-sm" id="btn-add-category"><i class="ri-add-line"></i> 카테고리 추가</button>
       </div>
     </div>
   </div>
@@ -222,9 +190,7 @@
     <div class="panel-body">
       <div class="setting-group">
         <h3>사용자 관리</h3>
-        <button class="btn btn-primary btn-sm" id="btn-create-user">
-          <i class="ri-user-add-line"></i> 사용자 생성
-        </button>
+        <button class="btn btn-primary btn-sm" id="btn-create-user"><i class="ri-user-add-line"></i> 사용자 생성</button>
         <div id="admin-user-list" class="user-list"></div>
       </div>
     </div>
@@ -238,9 +204,7 @@
       <i class="ri-lock-line lock-icon"></i>
       <p>화면이 잠겼습니다</p>
       <p class="lock-sub">PIN을 입력하세요</p>
-      <div class="pin-input-group">
-        <input type="password" id="lock-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus />
-      </div>
+      <div class="pin-input-group"><input type="password" id="lock-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus /></div>
       <div id="lock-error" class="error-msg hidden"></div>
     </form>
   </div>
@@ -253,18 +217,9 @@
         <button class="icon-btn modal-close" data-modal="bookmark-modal"><i class="ri-close-line"></i></button>
       </div>
       <form id="bookmark-form">
-        <div class="input-group">
-          <i class="ri-text"></i>
-          <input type="text" id="bm-title" placeholder="제목 (예: 경리나라)" required />
-        </div>
-        <div class="input-group">
-          <i class="ri-link"></i>
-          <input type="url" id="bm-url" placeholder="URL (예: https://...)" required />
-        </div>
-        <div class="input-group">
-          <i class="ri-file-text-line"></i>
-          <input type="text" id="bm-desc" placeholder="설명 (선택사항)" />
-        </div>
+        <div class="input-group"><i class="ri-text"></i><input type="text" id="bm-title" placeholder="제목 (예: 경리나라)" required /></div>
+        <div class="input-group"><i class="ri-link"></i><input type="url" id="bm-url" placeholder="URL (예: https://...)" required /></div>
+        <div class="input-group"><i class="ri-file-text-line"></i><input type="text" id="bm-desc" placeholder="설명 (선택사항)" /></div>
         <div class="form-row">
           <div class="form-col">
             <label class="field-label">카테고리</label>
@@ -273,22 +228,17 @@
           <div class="form-col">
             <label class="field-label">유형</label>
             <select id="bm-type" class="select-input">
-              <option value="web">🌐 웹사이트</option>
-              <option value="server">🖥️ 서버</option>
-              <option value="apps_script">📊 구글 앱스</option>
-              <option value="api">⚡ API</option>
-              <option value="other">📌 기타</option>
+              <option value="web">🌐 웹사이트</option><option value="server">🖥️ 서버</option>
+              <option value="apps_script">📊 구글 앱스</option><option value="api">⚡ API</option><option value="other">📌 기타</option>
             </select>
           </div>
         </div>
-        <div class="input-group">
-          <i class="ri-heart-pulse-line"></i>
-          <input type="url" id="bm-health" placeholder="상태 확인 URL (선택사항)" />
-        </div>
-        <div class="input-group">
-          <i class="ri-image-line"></i>
-          <input type="url" id="bm-icon" placeholder="아이콘 URL (선택사항)" />
-        </div>
+        <div class="input-group"><i class="ri-heart-pulse-line"></i><input type="url" id="bm-health" placeholder="상태 확인 URL (선택사항)" /></div>
+        <div class="input-group"><i class="ri-image-line"></i><input type="url" id="bm-icon" placeholder="아이콘 URL (선택사항)" /></div>
+        <label class="checkbox-label hidden" id="bm-shared-wrap">
+          <input type="checkbox" id="bm-shared" />
+          <span>공통 북마크로 등록 (모든 사용자에게 표시)</span>
+        </label>
         <input type="hidden" id="bm-edit-id" />
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-modal="bookmark-modal">취소</button>
@@ -307,14 +257,8 @@
       </div>
       <form id="category-form">
         <div class="form-row">
-          <div class="form-col" style="flex:0 0 80px">
-            <label class="field-label">아이콘</label>
-            <input type="text" id="cat-icon" class="emoji-input" value="📁" />
-          </div>
-          <div class="form-col">
-            <label class="field-label">이름</label>
-            <input type="text" id="cat-name" placeholder="카테고리 이름" required />
-          </div>
+          <div class="form-col" style="flex:0 0 80px"><label class="field-label">아이콘</label><input type="text" id="cat-icon" class="emoji-input" value="📁" /></div>
+          <div class="form-col"><label class="field-label">이름</label><input type="text" id="cat-name" placeholder="카테고리 이름" required /></div>
         </div>
         <input type="hidden" id="cat-edit-id" />
         <div class="modal-footer">
@@ -333,42 +277,37 @@
         <button class="icon-btn modal-close" data-modal="event-modal"><i class="ri-close-line"></i></button>
       </div>
       <form id="event-form">
-        <div class="input-group">
-          <i class="ri-calendar-event-line"></i>
-          <input type="text" id="evt-title" placeholder="일정 제목" required />
+        <div class="input-group"><i class="ri-calendar-event-line"></i><input type="text" id="evt-title" placeholder="일정 제목" required /></div>
+        <div class="form-row">
+          <div class="form-col"><label class="field-label">날짜</label><input type="date" id="evt-date" class="select-input" required /></div>
+          <div class="form-col"><label class="field-label">시간 (선택)</label><input type="time" id="evt-time" class="select-input" /></div>
         </div>
         <div class="form-row">
-          <div class="form-col">
-            <label class="field-label">날짜</label>
-            <input type="date" id="evt-date" class="select-input" required />
-          </div>
-          <div class="form-col">
-            <label class="field-label">시간 (선택)</label>
-            <input type="time" id="evt-time" class="select-input" />
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-col">
-            <label class="field-label">종료일 (선택)</label>
-            <input type="date" id="evt-end-date" class="select-input" />
-          </div>
-          <div class="form-col">
-            <label class="field-label">알림</label>
+          <div class="form-col"><label class="field-label">종료일 (선택)</label><input type="date" id="evt-end-date" class="select-input" /></div>
+          <div class="form-col"><label class="field-label">알림</label>
             <select id="evt-remind" class="select-input">
-              <option value="">없음</option>
-              <option value="0">정시</option>
-              <option value="5">5분 전</option>
-              <option value="10">10분 전</option>
-              <option value="15">15분 전</option>
-              <option value="30">30분 전</option>
-              <option value="60">1시간 전</option>
+              <option value="">없음</option><option value="0">정시</option><option value="5">5분 전</option>
+              <option value="10">10분 전</option><option value="15">15분 전</option><option value="30">30분 전</option><option value="60">1시간 전</option>
             </select>
           </div>
         </div>
-        <div class="input-group">
-          <i class="ri-file-text-line"></i>
-          <input type="text" id="evt-desc" placeholder="메모 (선택)" />
+        <div class="form-row">
+          <div class="form-col"><label class="field-label">반복</label>
+            <select id="evt-recurrence" class="select-input">
+              <option value="">없음</option><option value="daily">매일</option><option value="weekly">매주</option>
+              <option value="monthly">매월</option><option value="yearly">매년</option>
+            </select>
+          </div>
+          <div class="form-col" id="evt-recurrence-end-wrap" style="display:none">
+            <label class="field-label">반복 종료일</label>
+            <input type="date" id="evt-recurrence-end" class="select-input" />
+          </div>
         </div>
+        <div class="input-group"><i class="ri-file-text-line"></i><input type="text" id="evt-desc" placeholder="메모 (선택)" /></div>
+        <label class="checkbox-label" style="margin-bottom:8px">
+          <input type="checkbox" id="evt-is-task" />
+          <span>업무로 등록 (업무 목록에 표시)</span>
+        </label>
         <div>
           <label class="field-label">색상</label>
           <div class="color-picker" id="evt-color-picker">
@@ -399,10 +338,7 @@
         <button class="icon-btn modal-close" data-modal="memo-modal"><i class="ri-close-line"></i></button>
       </div>
       <form id="memo-form">
-        <div class="input-group">
-          <i class="ri-text"></i>
-          <input type="text" id="memo-title" placeholder="제목" />
-        </div>
+        <div class="input-group"><i class="ri-text"></i><input type="text" id="memo-title" placeholder="제목" /></div>
         <textarea id="memo-content" class="memo-textarea" rows="8" placeholder="내용을 입력하세요..."></textarea>
         <div>
           <label class="field-label">배경색</label>

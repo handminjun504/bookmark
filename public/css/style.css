@@ -1045,6 +1045,142 @@ body {
 .tab-content { display: none; }
 .tab-content.active { display: block; }
 
+/* ═══════════════ Calendar Layout ═══════════════ */
+.calendar-layout {
+  display: flex;
+  min-height: calc(100vh - 120px);
+}
+
+.calendar-main { flex: 1; min-width: 0; }
+
+/* ═══════════════ Task Sidebar ═══════════════ */
+.task-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.task-sidebar-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.task-sidebar-header h3 {
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.task-sidebar-header h3 i { color: var(--primary); font-size: 18px; }
+
+.task-sidebar-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.task-empty {
+  text-align: center;
+  padding: 40px 10px;
+  color: var(--text-muted);
+}
+.task-empty i { font-size: 36px; display: block; margin-bottom: 8px; }
+.task-empty p { font-size: 13px; }
+
+.task-day-group {
+  margin-bottom: 8px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.task-day-label {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-today-badge {
+  font-size: 10px;
+  background: var(--primary);
+  color: var(--white);
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.6);
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+  transition: background var(--transition);
+}
+.task-item:last-child { border-bottom: none; }
+.task-item:hover { background: rgba(255,255,255,0.9); }
+
+.task-item.task-done { opacity: 0.5; }
+.task-item.task-done .task-item-title { text-decoration: line-through; }
+
+.task-check {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.task-item-body { flex: 1; min-width: 0; }
+.task-item-title {
+  font-size: 13px;
+  font-weight: 500;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.task-item-time {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.task-color-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Day colors */
+.task-day-mon { background: #E3F2FD; }
+.task-day-tue { background: #E8F5E9; }
+.task-day-wed { background: #FFF3E0; }
+.task-day-thu { background: #F3E5F5; }
+.task-day-fri { background: #FCE4EC; }
+.task-day-sat { background: #E0F7FA; }
+.task-day-sun { background: #FBE9E7; }
+
+.task-day-today {
+  border-left: 3px solid var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.task-day-mon .task-day-label { color: #1565C0; }
+.task-day-tue .task-day-label { color: #2E7D32; }
+.task-day-wed .task-day-label { color: #E65100; }
+.task-day-thu .task-day-label { color: #6A1B9A; }
+.task-day-fri .task-day-label { color: #AD1457; }
+.task-day-sat .task-day-label { color: #00838F; }
+.task-day-sun .task-day-label { color: #BF360C; }
+
 /* ═══════════════ Calendar ═══════════════ */
 .calendar-header {
   display: flex;
@@ -1134,6 +1270,7 @@ body {
   line-height: 1.4;
 }
 .cal-event-bar:hover { opacity: 0.85; }
+.cal-event-done { opacity: 0.45; text-decoration: line-through; }
 
 .cal-event-more {
   font-size: 11px;
@@ -1274,6 +1411,8 @@ body {
   .main-tab { padding: 10px 14px; font-size: 13px; }
   .main-tab span { display: none; }
   .main-tab i { font-size: 20px; }
+  .calendar-layout { flex-direction: column; }
+  .task-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 250px; }
   .calendar-grid { margin: 0 10px; padding: 0 0 10px; }
   .calendar-header { padding: 14px 14px 8px; }
   .cal-cell { min-height: 70px; padding: 4px; }

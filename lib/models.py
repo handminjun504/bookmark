@@ -21,6 +21,7 @@ class BookmarkCreate(BaseModel):
     service_type: str = "web"
     health_check_url: Optional[str] = None
     icon_url: Optional[str] = None
+    is_shared: bool = False
 
 
 class BookmarkUpdate(BaseModel):
@@ -31,6 +32,7 @@ class BookmarkUpdate(BaseModel):
     service_type: Optional[str] = None
     health_check_url: Optional[str] = None
     icon_url: Optional[str] = None
+    is_shared: Optional[bool] = None
 
 
 class ReorderRequest(BaseModel):
@@ -79,6 +81,10 @@ class EventCreate(BaseModel):
     description: Optional[str] = None
     color: str = "#4DA8DA"
     remind_minutes: Optional[int] = None
+    recurrence_type: Optional[str] = None
+    recurrence_end: Optional[str] = None
+    recurrence_interval: int = 1
+    is_task: bool = False
 
 
 class EventUpdate(BaseModel):
@@ -89,6 +95,10 @@ class EventUpdate(BaseModel):
     description: Optional[str] = None
     color: Optional[str] = None
     remind_minutes: Optional[int] = None
+    recurrence_type: Optional[str] = None
+    recurrence_end: Optional[str] = None
+    recurrence_interval: Optional[int] = None
+    is_task: Optional[bool] = None
 
 
 class MemoCreate(BaseModel):

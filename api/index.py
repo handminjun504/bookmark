@@ -1,7 +1,8 @@
 import sys
 import os
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, timedelta
+from dateutil.relativedelta import relativedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -217,6 +218,8 @@ async def get_bookmarks(user=Depends(get_current_user)):
 @app.post("/api/bookmarks")
 async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
     db = get_supabase()
+    if req.is_shared and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can create shared bookmarks")
     data = {
         "user_id": user["sub"],
         "title": req.title,
@@ -226,6 +229,7 @@ async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
         "service_type": req.service_type,
         "health_check_url": req.health_check_url,
         "icon_url": req.icon_url,
+        "is_shared": req.is_shared,
     }
     result = db.table("bookmarks").insert(data).execute()
     return result.data[0]
@@ -239,6 +243,9 @@ async def update_bookmark(
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    if "is_shared" in data and not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Only admins can change shared status")
 
     result = (
         db.table("bookmarks")
@@ -498,26 +505,83 @@ async def reset_password(user_id: str, req: dict, admin=Depends(get_admin_user))
 # ── Events (Calendar) ──
 
 
+def _expand_recurring(events_data, view_start: date, view_end: date):
+    """Expand recurring events into individual date instances within the view range."""
+    expanded = []
+    for ev in events_data:
+        rtype = ev.get("recurrence_type")
+        if not rtype:
+            expanded.append(ev)
+            continue
+
+        base = date.fromisoformat(ev["start_date"])
+        r_end = date.fromisoformat(ev["recurrence_end"]) if ev.get("recurrence_end") else view_end
+        r_end = min(r_end, view_end)
+        interval = ev.get("recurrence_interval") or 1
+        current = base
+
+        while current <= r_end:
+            if current >= view_start:
+                instance = dict(ev)
+                instance["start_date"] = current.isoformat()
+                instance["_recurring"] = True
+                expanded.append(instance)
+
+            if rtype == "daily":
+                current += timedelta(days=interval)
+            elif rtype == "weekly":
+                current += timedelta(weeks=interval)
+            elif rtype == "monthly":
+                current += relativedelta(months=interval)
+            elif rtype == "yearly":
+                current += relativedelta(years=interval)
+            else:
+                break
+
+    expanded.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
+    return expanded
+
+
 @app.get("/api/events")
 async def get_events(year: int, month: int, user=Depends(get_current_user)):
     db = get_supabase()
-    start = f"{year}-{month:02d}-01"
+    view_start = date(year, month, 1)
     if month == 12:
-        end = f"{year + 1}-01-01"
+        view_end = date(year + 1, 1, 1)
     else:
-        end = f"{year}-{month + 1:02d}-01"
+        view_end = date(year, month + 1, 1)
 
-    result = (
+    start_str = view_start.isoformat()
+    end_str = view_end.isoformat()
+
+    single = (
         db.table("events")
         .select("*")
         .eq("user_id", user["sub"])
-        .gte("start_date", start)
-        .lt("start_date", end)
+        .gte("start_date", start_str)
+        .lt("start_date", end_str)
         .order("start_date")
         .order("start_time")
         .execute()
     )
-    return result.data
+
+    recurring = (
+        db.table("events")
+        .select("*")
+        .eq("user_id", user["sub"])
+        .lt("start_date", end_str)
+        .execute()
+    )
+    recurring_only = [e for e in recurring.data if e.get("recurrence_type")]
+
+    non_recurring = [e for e in single.data if not e.get("recurrence_type")]
+    all_events = _expand_recurring(recurring_only, view_start, view_end)
+    for ev in non_recurring:
+        if not any(x["id"] == ev["id"] and x["start_date"] == ev["start_date"] for x in all_events):
+            all_events.append(ev)
+
+    all_events.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
+    return all_events
 
 
 @app.post("/api/events")
@@ -532,6 +596,10 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         "description": req.description,
         "color": req.color,
         "remind_minutes": req.remind_minutes,
+        "recurrence_type": req.recurrence_type,
+        "recurrence_end": req.recurrence_end,
+        "recurrence_interval": req.recurrence_interval,
+        "is_task": req.is_task,
     }
     result = db.table("events").insert(data).execute()
     return result.data[0]
@@ -570,6 +638,53 @@ async def delete_event(event_id: str, user=Depends(get_current_user)):
     if not result.data:
         raise HTTPException(status_code=404, detail="Event not found")
     return {"message": "Deleted"}
+
+
+@app.patch("/api/events/{event_id}/done")
+async def toggle_event_done(event_id: str, user=Depends(get_current_user)):
+    db = get_supabase()
+    current = (
+        db.table("events")
+        .select("is_done")
+        .eq("id", event_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not current.data:
+        raise HTTPException(status_code=404, detail="Event not found")
+    new_val = not current.data[0]["is_done"]
+    result = (
+        db.table("events")
+        .update({"is_done": new_val})
+        .eq("id", event_id)
+        .execute()
+    )
+    return result.data[0]
+
+
+@app.get("/api/events/week")
+async def get_week_tasks(date_str: str = None, user=Depends(get_current_user)):
+    db = get_supabase()
+    if date_str:
+        ref = date.fromisoformat(date_str)
+    else:
+        ref = date.today()
+
+    monday = ref - timedelta(days=ref.weekday())
+    sunday = monday + timedelta(days=6)
+
+    result = (
+        db.table("events")
+        .select("*")
+        .eq("user_id", user["sub"])
+        .eq("is_task", True)
+        .gte("start_date", monday.isoformat())
+        .lte("start_date", sunday.isoformat())
+        .order("start_date")
+        .order("start_time")
+        .execute()
+    )
+    return result.data
 
 
 # ── Memos ──
