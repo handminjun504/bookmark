@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>통합접속</title>
+  <meta name="theme-color" content="#4DA8DA" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" />
   <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.min.css" rel="stylesheet" />
@@ -37,7 +43,6 @@
         </button>
         <div id="login-error" class="error-msg hidden"></div>
       </form>
-
       <div id="setup-section" class="hidden">
         <div class="divider"><span>최초 설정</span></div>
         <form id="setup-form" autocomplete="off">
@@ -53,9 +58,7 @@
             <i class="ri-user-heart-line"></i>
             <input type="text" id="setup-display" placeholder="표시 이름" required />
           </div>
-          <button type="submit" class="btn btn-accent btn-full">
-            관리자 계정 생성
-          </button>
+          <button type="submit" class="btn btn-accent btn-full">관리자 계정 생성</button>
         </form>
       </div>
     </div>
@@ -70,7 +73,7 @@
         <span class="header-title">통합접속</span>
       </div>
       <div class="header-center">
-        <div class="search-box">
+        <div class="search-box" id="search-box-wrap">
           <i class="ri-search-line"></i>
           <input type="text" id="search-input" placeholder="검색..." />
         </div>
@@ -96,8 +99,21 @@
       </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="main-content" id="main-content">
+    <!-- Main Tab Bar -->
+    <nav class="main-tab-bar" id="main-tab-bar">
+      <button class="main-tab active" data-tab="bookmarks">
+        <i class="ri-bookmark-line"></i><span>북마크</span>
+      </button>
+      <button class="main-tab" data-tab="calendar">
+        <i class="ri-calendar-line"></i><span>캘린더</span>
+      </button>
+      <button class="main-tab" data-tab="memos">
+        <i class="ri-sticky-note-line"></i><span>메모</span>
+      </button>
+    </nav>
+
+    <!-- Tab: Bookmarks -->
+    <main class="tab-content active" id="tab-bookmarks">
       <div class="category-tabs" id="category-tabs">
         <button class="cat-tab active" data-cat="all">
           <i class="ri-apps-line"></i> 전체
@@ -109,6 +125,40 @@
         <p>등록된 북마크가 없습니다</p>
         <button class="btn btn-primary" id="btn-empty-add">
           <i class="ri-add-line"></i> 첫 번째 북마크 추가
+        </button>
+      </div>
+    </main>
+
+    <!-- Tab: Calendar -->
+    <main class="tab-content" id="tab-calendar">
+      <div class="calendar-header">
+        <button class="icon-btn" id="cal-prev"><i class="ri-arrow-left-s-line"></i></button>
+        <h2 id="cal-month-title"></h2>
+        <button class="icon-btn" id="cal-next"><i class="ri-arrow-right-s-line"></i></button>
+        <button class="btn btn-sm btn-outline" id="cal-today">오늘</button>
+      </div>
+      <div class="calendar-weekdays">
+        <span class="wd sun">일</span><span class="wd">월</span><span class="wd">화</span>
+        <span class="wd">수</span><span class="wd">목</span><span class="wd">금</span>
+        <span class="wd sat">토</span>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </main>
+
+    <!-- Tab: Memos -->
+    <main class="tab-content" id="tab-memos">
+      <div class="memos-header">
+        <h2><i class="ri-sticky-note-line"></i> 메모</h2>
+        <button class="btn btn-primary btn-sm" id="btn-add-memo">
+          <i class="ri-add-line"></i> 새 메모
+        </button>
+      </div>
+      <div class="memos-grid" id="memos-grid"></div>
+      <div class="empty-state hidden" id="memo-empty-state">
+        <i class="ri-sticky-note-line"></i>
+        <p>메모가 없습니다</p>
+        <button class="btn btn-primary" id="btn-memo-empty-add">
+          <i class="ri-add-line"></i> 첫 번째 메모 작성
         </button>
       </div>
     </main>
@@ -180,7 +230,6 @@
     </div>
   </div>
 
-  <!-- ══════ Overlay for side panels ══════ -->
   <div id="panel-overlay" class="panel-overlay hidden"></div>
 
   <!-- ══════ Lock Screen ══════ -->
@@ -219,9 +268,7 @@
         <div class="form-row">
           <div class="form-col">
             <label class="field-label">카테고리</label>
-            <select id="bm-category" class="select-input">
-              <option value="">없음</option>
-            </select>
+            <select id="bm-category" class="select-input"><option value="">없음</option></select>
           </div>
           <div class="form-col">
             <label class="field-label">유형</label>
@@ -278,81 +325,149 @@
     </div>
   </div>
 
-  <!-- ══════ User Create Modal ══════ -->
+  <!-- ══════ Event Modal ══════ -->
+  <div id="event-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3 id="event-modal-title">일정 추가</h3>
+        <button class="icon-btn modal-close" data-modal="event-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="event-form">
+        <div class="input-group">
+          <i class="ri-calendar-event-line"></i>
+          <input type="text" id="evt-title" placeholder="일정 제목" required />
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">날짜</label>
+            <input type="date" id="evt-date" class="select-input" required />
+          </div>
+          <div class="form-col">
+            <label class="field-label">시간 (선택)</label>
+            <input type="time" id="evt-time" class="select-input" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">종료일 (선택)</label>
+            <input type="date" id="evt-end-date" class="select-input" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">알림</label>
+            <select id="evt-remind" class="select-input">
+              <option value="">없음</option>
+              <option value="0">정시</option>
+              <option value="5">5분 전</option>
+              <option value="10">10분 전</option>
+              <option value="15">15분 전</option>
+              <option value="30">30분 전</option>
+              <option value="60">1시간 전</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <i class="ri-file-text-line"></i>
+          <input type="text" id="evt-desc" placeholder="메모 (선택)" />
+        </div>
+        <div>
+          <label class="field-label">색상</label>
+          <div class="color-picker" id="evt-color-picker">
+            <span class="color-dot active" data-color="#4DA8DA" style="background:#4DA8DA"></span>
+            <span class="color-dot" data-color="#27AE60" style="background:#27AE60"></span>
+            <span class="color-dot" data-color="#E74C3C" style="background:#E74C3C"></span>
+            <span class="color-dot" data-color="#F39C12" style="background:#F39C12"></span>
+            <span class="color-dot" data-color="#8E44AD" style="background:#8E44AD"></span>
+            <span class="color-dot" data-color="#2C3E50" style="background:#2C3E50"></span>
+          </div>
+        </div>
+        <input type="hidden" id="evt-edit-id" />
+        <input type="hidden" id="evt-color" value="#4DA8DA" />
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="event-modal">취소</button>
+          <button type="button" class="btn btn-danger btn-sm hidden" id="evt-delete-btn">삭제</button>
+          <button type="submit" class="btn btn-primary" id="evt-submit-btn">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ Memo Edit Modal ══════ -->
+  <div id="memo-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="memo-modal-title">메모</h3>
+        <button class="icon-btn modal-close" data-modal="memo-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="memo-form">
+        <div class="input-group">
+          <i class="ri-text"></i>
+          <input type="text" id="memo-title" placeholder="제목" />
+        </div>
+        <textarea id="memo-content" class="memo-textarea" rows="8" placeholder="내용을 입력하세요..."></textarea>
+        <div>
+          <label class="field-label">배경색</label>
+          <div class="color-picker" id="memo-color-picker">
+            <span class="color-dot active" data-color="#FFFFFF" style="background:#FFFFFF;border:1px solid #ddd"></span>
+            <span class="color-dot" data-color="#FFF9C4" style="background:#FFF9C4"></span>
+            <span class="color-dot" data-color="#C8E6C9" style="background:#C8E6C9"></span>
+            <span class="color-dot" data-color="#BBDEFB" style="background:#BBDEFB"></span>
+            <span class="color-dot" data-color="#F8BBD0" style="background:#F8BBD0"></span>
+            <span class="color-dot" data-color="#E1BEE7" style="background:#E1BEE7"></span>
+          </div>
+        </div>
+        <input type="hidden" id="memo-edit-id" />
+        <input type="hidden" id="memo-color" value="#FFFFFF" />
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="memo-modal">취소</button>
+          <button type="button" class="btn btn-danger btn-sm hidden" id="memo-delete-btn">삭제</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ User / PW / Confirm Modals ══════ -->
   <div id="user-modal" class="modal hidden">
     <div class="modal-content modal-sm">
-      <div class="modal-header">
-        <h3>사용자 생성</h3>
-        <button class="icon-btn modal-close" data-modal="user-modal"><i class="ri-close-line"></i></button>
-      </div>
+      <div class="modal-header"><h3>사용자 생성</h3><button class="icon-btn modal-close" data-modal="user-modal"><i class="ri-close-line"></i></button></div>
       <form id="user-form">
-        <div class="input-group">
-          <i class="ri-user-line"></i>
-          <input type="text" id="new-user-id" placeholder="아이디" required />
-        </div>
-        <div class="input-group">
-          <i class="ri-lock-line"></i>
-          <input type="password" id="new-user-pw" placeholder="초기 비밀번호" required />
-        </div>
-        <div class="input-group">
-          <i class="ri-user-heart-line"></i>
-          <input type="text" id="new-user-name" placeholder="표시 이름" required />
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button>
-          <button type="submit" class="btn btn-primary">생성</button>
-        </div>
+        <div class="input-group"><i class="ri-user-line"></i><input type="text" id="new-user-id" placeholder="아이디" required /></div>
+        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="new-user-pw" placeholder="초기 비밀번호" required /></div>
+        <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="new-user-name" placeholder="표시 이름" required /></div>
+        <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button><button type="submit" class="btn btn-primary">생성</button></div>
       </form>
     </div>
   </div>
-
-  <!-- ══════ Password Change Modal ══════ -->
   <div id="pw-modal" class="modal hidden">
     <div class="modal-content modal-sm">
-      <div class="modal-header">
-        <h3>비밀번호 변경</h3>
-        <button class="icon-btn modal-close" data-modal="pw-modal"><i class="ri-close-line"></i></button>
-      </div>
+      <div class="modal-header"><h3>비밀번호 변경</h3><button class="icon-btn modal-close" data-modal="pw-modal"><i class="ri-close-line"></i></button></div>
       <form id="pw-form">
-        <div class="input-group">
-          <i class="ri-lock-line"></i>
-          <input type="password" id="pw-current" placeholder="현재 비밀번호" required />
-        </div>
-        <div class="input-group">
-          <i class="ri-lock-password-line"></i>
-          <input type="password" id="pw-new" placeholder="새 비밀번호" required />
-        </div>
-        <div class="input-group">
-          <i class="ri-lock-password-line"></i>
-          <input type="password" id="pw-confirm" placeholder="새 비밀번호 확인" required />
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-ghost" data-modal="pw-modal">취소</button>
-          <button type="submit" class="btn btn-primary">변경</button>
-        </div>
+        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="pw-current" placeholder="현재 비밀번호" required /></div>
+        <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-new" placeholder="새 비밀번호" required /></div>
+        <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-confirm" placeholder="새 비밀번호 확인" required /></div>
+        <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="pw-modal">취소</button><button type="submit" class="btn btn-primary">변경</button></div>
       </form>
     </div>
   </div>
-
-  <!-- ══════ Confirm Dialog ══════ -->
   <div id="confirm-dialog" class="modal hidden">
     <div class="modal-content modal-xs">
-      <div class="modal-header">
-        <h3 id="confirm-title">확인</h3>
-      </div>
+      <div class="modal-header"><h3 id="confirm-title">확인</h3></div>
       <p id="confirm-message" class="confirm-msg"></p>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" id="confirm-cancel">취소</button>
-        <button class="btn btn-danger" id="confirm-ok">확인</button>
-      </div>
+      <div class="modal-footer"><button class="btn btn-ghost" id="confirm-cancel">취소</button><button class="btn btn-danger" id="confirm-ok">확인</button></div>
     </div>
   </div>
 
-  <!-- ══════ Toast ══════ -->
   <div id="toast-container" class="toast-container"></div>
 
   <script src="/js/auth.js"></script>
   <script src="/js/ui.js"></script>
+  <script src="/js/calendar.js"></script>
+  <script src="/js/memos.js"></script>
   <script src="/js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
 </body>
 </html>

@@ -1,0 +1,229 @@
+const Calendar = (() => {
+  let currentYear, currentMonth;
+  let events = [];
+  let notifyTimers = [];
+
+  function init() {
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth();
+
+    document.getElementById('cal-prev').addEventListener('click', () => navigate(-1));
+    document.getElementById('cal-next').addEventListener('click', () => navigate(1));
+    document.getElementById('cal-today').addEventListener('click', goToday);
+    document.getElementById('event-form').addEventListener('submit', saveEvent);
+    document.getElementById('evt-delete-btn').addEventListener('click', deleteCurrentEvent);
+
+    document.getElementById('evt-color-picker').querySelectorAll('.color-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        document.getElementById('evt-color-picker').querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+        document.getElementById('evt-color').value = dot.dataset.color;
+      });
+    });
+
+    requestNotificationPermission();
+  }
+
+  function navigate(dir) {
+    currentMonth += dir;
+    if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    load();
+  }
+
+  function goToday() {
+    const now = new Date();
+    currentYear = now.getFullYear();
+    currentMonth = now.getMonth();
+    load();
+  }
+
+  async function load() {
+    document.getElementById('cal-month-title').textContent =
+      `${currentYear}년 ${currentMonth + 1}월`;
+
+    try {
+      events = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}`);
+    } catch {
+      events = [];
+    }
+    render();
+    scheduleNotifications();
+  }
+
+  function render() {
+    const grid = document.getElementById('calendar-grid');
+    const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
+
+    let html = '';
+
+    for (let i = 0; i < firstDay; i++) {
+      html += '<div class="cal-cell empty"></div>';
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const dayEvents = events.filter(e => e.start_date === dateStr);
+      const isToday = isCurrentMonth && today.getDate() === d;
+      const dow = (firstDay + d - 1) % 7;
+      const isSun = dow === 0;
+      const isSat = dow === 6;
+
+      html += `<div class="cal-cell${isToday ? ' today' : ''}${isSun ? ' sun' : ''}${isSat ? ' sat' : ''}" data-date="${dateStr}">`;
+      html += `<span class="cal-day-num">${d}</span>`;
+      if (dayEvents.length > 0) {
+        html += '<div class="cal-events">';
+        dayEvents.slice(0, 3).forEach(ev => {
+          const time = ev.start_time ? ev.start_time.substring(0, 5) + ' ' : '';
+          html += `<div class="cal-event-bar" style="background:${ev.color}" data-id="${ev.id}" title="${time}${ev.title}">${time}${escapeHtml(ev.title)}</div>`;
+        });
+        if (dayEvents.length > 3) {
+          html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    grid.innerHTML = html;
+
+    grid.querySelectorAll('.cal-cell:not(.empty)').forEach(cell => {
+      cell.addEventListener('click', e => {
+        if (e.target.closest('.cal-event-bar')) {
+          const evtId = e.target.closest('.cal-event-bar').dataset.id;
+          openEditEvent(evtId);
+        } else {
+          openAddEvent(cell.dataset.date);
+        }
+      });
+    });
+  }
+
+  function openAddEvent(dateStr) {
+    document.getElementById('event-modal-title').textContent = '일정 추가';
+    document.getElementById('evt-submit-btn').textContent = '추가';
+    document.getElementById('evt-delete-btn').classList.add('hidden');
+    document.getElementById('event-form').reset();
+    document.getElementById('evt-date').value = dateStr || '';
+    document.getElementById('evt-color').value = '#4DA8DA';
+    document.getElementById('evt-edit-id').value = '';
+    resetColorPicker('evt-color-picker', '#4DA8DA');
+    UI.openModal('event-modal');
+  }
+
+  function openEditEvent(id) {
+    const ev = events.find(e => e.id === id);
+    if (!ev) return;
+    document.getElementById('event-modal-title').textContent = '일정 수정';
+    document.getElementById('evt-submit-btn').textContent = '저장';
+    document.getElementById('evt-delete-btn').classList.remove('hidden');
+    document.getElementById('evt-edit-id').value = id;
+    document.getElementById('evt-title').value = ev.title;
+    document.getElementById('evt-date').value = ev.start_date;
+    document.getElementById('evt-time').value = ev.start_time || '';
+    document.getElementById('evt-end-date').value = ev.end_date || '';
+    document.getElementById('evt-desc').value = ev.description || '';
+    document.getElementById('evt-remind').value = ev.remind_minutes != null ? String(ev.remind_minutes) : '';
+    document.getElementById('evt-color').value = ev.color || '#4DA8DA';
+    resetColorPicker('evt-color-picker', ev.color || '#4DA8DA');
+    UI.openModal('event-modal');
+  }
+
+  function resetColorPicker(pickerId, activeColor) {
+    document.getElementById(pickerId).querySelectorAll('.color-dot').forEach(d => {
+      d.classList.toggle('active', d.dataset.color === activeColor);
+    });
+  }
+
+  async function saveEvent(e) {
+    e.preventDefault();
+    const id = document.getElementById('evt-edit-id').value;
+    const remindVal = document.getElementById('evt-remind').value;
+    const data = {
+      title: document.getElementById('evt-title').value.trim(),
+      start_date: document.getElementById('evt-date').value,
+      start_time: document.getElementById('evt-time').value || null,
+      end_date: document.getElementById('evt-end-date').value || null,
+      description: document.getElementById('evt-desc').value.trim() || null,
+      color: document.getElementById('evt-color').value,
+      remind_minutes: remindVal !== '' ? parseInt(remindVal, 10) : null,
+    };
+
+    try {
+      if (id) {
+        await Auth.request(`/events/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+        UI.showToast('일정이 수정되었습니다', 'success');
+      } else {
+        await Auth.request('/events', { method: 'POST', body: JSON.stringify(data) });
+        UI.showToast('일정이 추가되었습니다', 'success');
+      }
+      UI.closeModal('event-modal');
+      load();
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
+  }
+
+  async function deleteCurrentEvent() {
+    const id = document.getElementById('evt-edit-id').value;
+    if (!id) return;
+    const ok = await UI.confirm('삭제 확인', '이 일정을 삭제하시겠습니까?');
+    if (!ok) return;
+    try {
+      await Auth.request(`/events/${id}`, { method: 'DELETE' });
+      UI.showToast('삭제되었습니다', 'success');
+      UI.closeModal('event-modal');
+      load();
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
+  }
+
+  // ── Notifications ──
+
+  function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  function scheduleNotifications() {
+    notifyTimers.forEach(t => clearTimeout(t));
+    notifyTimers = [];
+
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+
+    const now = new Date();
+    events.forEach(ev => {
+      if (ev.remind_minutes == null || !ev.start_time) return;
+
+      const eventTime = new Date(`${ev.start_date}T${ev.start_time}`);
+      const notifyTime = new Date(eventTime.getTime() - ev.remind_minutes * 60000);
+      const delay = notifyTime.getTime() - now.getTime();
+
+      if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
+        const timer = setTimeout(() => {
+          const remindText = ev.remind_minutes === 0 ? '지금' : `${ev.remind_minutes}분 후`;
+          new Notification('통합접속 - 일정 알림', {
+            body: `${ev.title} (${remindText} 시작)`,
+            icon: '/icons/icon-192.png',
+            tag: ev.id,
+          });
+        }, delay);
+        notifyTimers.push(timer);
+      }
+    });
+  }
+
+  function escapeHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  return { init, load, openAddEvent };
+})();

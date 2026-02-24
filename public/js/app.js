@@ -5,6 +5,7 @@
   let activeCategory = 'all';
   let healthCache = {};
   let dragSrcId = null;
+  let activeTab = 'bookmarks';
 
   // ═══════ Init ═══════
 
@@ -19,6 +20,32 @@
     } else {
       showLogin();
     }
+  }
+
+  // ═══════ Tab Navigation ═══════
+
+  function switchTab(tab) {
+    activeTab = tab;
+    document.querySelectorAll('.main-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.tab === tab);
+    });
+    document.querySelectorAll('.tab-content').forEach(c => {
+      c.classList.toggle('active', c.id === `tab-${tab}`);
+    });
+
+    const addBmBtn = document.getElementById('btn-add-bookmark');
+    const searchBox = document.getElementById('search-box-wrap');
+
+    if (tab === 'bookmarks') {
+      addBmBtn.style.display = '';
+      searchBox.style.display = '';
+    } else {
+      addBmBtn.style.display = 'none';
+      searchBox.style.display = 'none';
+    }
+
+    if (tab === 'calendar') Calendar.load();
+    if (tab === 'memos') Memos.load();
   }
 
   // ═══════ Screens ═══════
@@ -39,6 +66,8 @@
     if (Auth.isAdmin()) adminBtn.style.display = '';
     else adminBtn.style.display = 'none';
 
+    Calendar.init();
+    Memos.init();
     loadData();
   }
 
@@ -157,12 +186,8 @@
     });
 
     grid.querySelectorAll('.btn-edit-bm').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        openEditBookmark(btn.dataset.id);
-      });
+      btn.addEventListener('click', e => { e.stopPropagation(); openEditBookmark(btn.dataset.id); });
     });
-
     grid.querySelectorAll('.btn-delete-bm').forEach(btn => {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
@@ -218,36 +243,19 @@
 
   async function checkHealthAll() {
     const urlMap = {};
-    bookmarks.forEach(b => {
+    [...bookmarks, ...sharedBookmarks].forEach(b => {
       const url = b.health_check_url || b.url;
-      if (url) {
-        urlMap[b.id] = url;
-        healthCache[b.id] = 'checking';
-      }
-    });
-    sharedBookmarks.forEach(b => {
-      const url = b.health_check_url || b.url;
-      if (url) {
-        urlMap[b.id] = url;
-        healthCache[b.id] = 'checking';
-      }
+      if (url) { urlMap[b.id] = url; healthCache[b.id] = 'checking'; }
     });
     renderBookmarks();
-
     if (Object.keys(urlMap).length === 0) return;
-
     try {
       const result = await Auth.request('/health/batch', {
-        method: 'POST',
-        body: JSON.stringify({ urls: urlMap }),
+        method: 'POST', body: JSON.stringify({ urls: urlMap }),
       });
-      Object.entries(result).forEach(([id, info]) => {
-        healthCache[id] = info.status;
-      });
+      Object.entries(result).forEach(([id, info]) => { healthCache[id] = info.status; });
     } catch {
-      Object.keys(urlMap).forEach(id => {
-        healthCache[id] = 'unknown';
-      });
+      Object.keys(urlMap).forEach(id => { healthCache[id] = 'unknown'; });
     }
     renderBookmarks();
   }
@@ -299,7 +307,6 @@
       health_check_url: document.getElementById('bm-health').value.trim() || null,
       icon_url: document.getElementById('bm-icon').value.trim() || null,
     };
-
     try {
       if (id) {
         await Auth.request(`/bookmarks/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -320,51 +327,37 @@
       await Auth.request(`/bookmarks/${id}`, { method: 'DELETE' });
       UI.showToast('삭제되었습니다', 'success');
       loadData();
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   async function handleReorder(fromId, toId) {
     const fromIdx = bookmarks.findIndex(b => b.id === fromId);
     const toIdx = bookmarks.findIndex(b => b.id === toId);
     if (fromIdx < 0 || toIdx < 0) return;
-
     const [moved] = bookmarks.splice(fromIdx, 1);
     bookmarks.splice(toIdx, 0, moved);
-
     const items = bookmarks.map((b, i) => ({ id: b.id, sort_order: i }));
     renderBookmarks();
-
     try {
       await Auth.request('/bookmarks/reorder', { method: 'PATCH', body: JSON.stringify({ items }) });
-    } catch (err) {
-      UI.showToast('순서 변경 실패', 'error');
-      loadData();
-    }
+    } catch { UI.showToast('순서 변경 실패', 'error'); loadData(); }
   }
 
   // ═══════ Categories ═══════
 
   function renderCategoryList() {
     const container = document.getElementById('category-list');
-    container.innerHTML = categories
-      .filter(c => c.user_id || !c.is_shared)
-      .map(c => `
-        <div class="category-manage-item">
-          <span class="cat-icon-display">${c.icon}</span>
-          <span class="cat-name-display">${escapeHtml(c.name)}</span>
-          <button class="icon-btn btn-edit-cat" data-id="${c.id}" title="수정"><i class="ri-edit-line"></i></button>
-          <button class="icon-btn btn-delete-cat" data-id="${c.id}" title="삭제"><i class="ri-delete-bin-line"></i></button>
-        </div>
-      `).join('');
-
-    container.querySelectorAll('.btn-edit-cat').forEach(btn => {
-      btn.addEventListener('click', () => openEditCategory(btn.dataset.id));
-    });
+    container.innerHTML = categories.filter(c => c.user_id || !c.is_shared).map(c => `
+      <div class="category-manage-item">
+        <span class="cat-icon-display">${c.icon}</span>
+        <span class="cat-name-display">${escapeHtml(c.name)}</span>
+        <button class="icon-btn btn-edit-cat" data-id="${c.id}" title="수정"><i class="ri-edit-line"></i></button>
+        <button class="icon-btn btn-delete-cat" data-id="${c.id}" title="삭제"><i class="ri-delete-bin-line"></i></button>
+      </div>`).join('');
+    container.querySelectorAll('.btn-edit-cat').forEach(btn => btn.addEventListener('click', () => openEditCategory(btn.dataset.id)));
     container.querySelectorAll('.btn-delete-cat').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const ok = await UI.confirm('삭제 확인', '이 카테고리를 삭제하시겠습니까?\n(북마크는 미분류로 이동됩니다)');
+        const ok = await UI.confirm('삭제 확인', '이 카테고리를 삭제하시겠습니까?');
         if (ok) deleteCategory(btn.dataset.id);
       });
     });
@@ -391,11 +384,7 @@
   async function saveCategory(e) {
     e.preventDefault();
     const id = document.getElementById('cat-edit-id').value;
-    const data = {
-      name: document.getElementById('cat-name').value.trim(),
-      icon: document.getElementById('cat-icon').value.trim() || '📁',
-    };
-
+    const data = { name: document.getElementById('cat-name').value.trim(), icon: document.getElementById('cat-icon').value.trim() || '📁' };
     try {
       if (id) {
         await Auth.request(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -407,9 +396,7 @@
       UI.closeModal('category-modal');
       loadData();
       renderCategoryList();
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   async function deleteCategory(id) {
@@ -418,9 +405,7 @@
       UI.showToast('삭제되었습니다', 'success');
       if (activeCategory === id) activeCategory = 'all';
       loadData();
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   // ═══════ Settings ═══════
@@ -443,31 +428,24 @@
       Auth.updateUser({ display_name: name });
       document.getElementById('user-display-name').textContent = name;
       UI.showToast('저장되었습니다', 'success');
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   async function saveLockSettings() {
     const enabled = document.getElementById('setting-lock-enabled').checked;
     const timeout = parseInt(document.getElementById('setting-lock-timeout').value, 10);
     const pin = document.getElementById('setting-pin').value.trim();
-
     if (enabled && !pin) return UI.showToast('PIN을 설정해주세요', 'error');
     if (pin && !/^\d{1,4}$/.test(pin)) return UI.showToast('PIN은 숫자 1~4자리입니다', 'error');
-
     try {
       await Auth.request('/user/settings', {
         method: 'PUT',
         body: JSON.stringify({ lock_enabled: enabled, lock_timeout: timeout, pin_code: pin || null }),
       });
       Auth.updateUser({ lock_enabled: enabled, lock_timeout: timeout, pin_code: pin || null });
-      if (enabled) Auth.startLockTimer();
-      else Auth.stopLockTimer();
+      if (enabled) Auth.startLockTimer(); else Auth.stopLockTimer();
       UI.showToast('잠금 설정이 저장되었습니다', 'success');
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   // ═══════ Admin ═══════
@@ -477,9 +455,7 @@
     try {
       const users = await Auth.request('/admin/users');
       renderAdminUsers(users);
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   function renderAdminUsers(users) {
@@ -497,26 +473,19 @@
             <button class="icon-btn btn-delete-user" data-id="${u.id}" data-name="${escapeHtml(u.display_name)}" title="삭제"><i class="ri-delete-bin-line"></i></button>
           ` : ''}
         </div>
-      </div>
-    `).join('');
+      </div>`).join('');
 
     list.querySelectorAll('.btn-reset-pw').forEach(btn => {
       btn.addEventListener('click', async () => {
         const ok = await UI.confirm('비밀번호 초기화', `${btn.dataset.name}의 비밀번호를 0000으로 초기화하시겠습니까?`);
         if (ok) {
           try {
-            await Auth.request(`/admin/users/${btn.dataset.id}/reset-password`, {
-              method: 'POST',
-              body: JSON.stringify({ new_password: '0000' }),
-            });
+            await Auth.request(`/admin/users/${btn.dataset.id}/reset-password`, { method: 'POST', body: JSON.stringify({ new_password: '0000' }) });
             UI.showToast('비밀번호가 0000으로 초기화되었습니다', 'success');
-          } catch (err) {
-            UI.showToast(err.message, 'error');
-          }
+          } catch (err) { UI.showToast(err.message, 'error'); }
         }
       });
     });
-
     list.querySelectorAll('.btn-delete-user').forEach(btn => {
       btn.addEventListener('click', async () => {
         const ok = await UI.confirm('사용자 삭제', `${btn.dataset.name} 사용자를 삭제하시겠습니까?`);
@@ -525,9 +494,7 @@
             await Auth.request(`/admin/users/${btn.dataset.id}`, { method: 'DELETE' });
             UI.showToast('삭제되었습니다', 'success');
             openAdmin();
-          } catch (err) {
-            UI.showToast(err.message, 'error');
-          }
+          } catch (err) { UI.showToast(err.message, 'error'); }
         }
       });
     });
@@ -546,41 +513,26 @@
       UI.closeModal('user-modal');
       document.getElementById('user-form').reset();
       openAdmin();
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
-
-  // ═══════ Password Change ═══════
 
   async function changePassword(e) {
     e.preventDefault();
     const current = document.getElementById('pw-current').value;
     const newPw = document.getElementById('pw-new').value;
-    const confirm = document.getElementById('pw-confirm').value;
-
-    if (newPw !== confirm) return UI.showToast('새 비밀번호가 일치하지 않습니다', 'error');
-    if (newPw.length < 1) return UI.showToast('비밀번호를 입력하세요', 'error');
-
+    const confirmPw = document.getElementById('pw-confirm').value;
+    if (newPw !== confirmPw) return UI.showToast('새 비밀번호가 일치하지 않습니다', 'error');
     try {
-      await Auth.request('/user/password', {
-        method: 'PUT',
-        body: JSON.stringify({ current_password: current, new_password: newPw }),
-      });
+      await Auth.request('/user/password', { method: 'PUT', body: JSON.stringify({ current_password: current, new_password: newPw }) });
       UI.showToast('비밀번호가 변경되었습니다', 'success');
       UI.closeModal('pw-modal');
       document.getElementById('pw-form').reset();
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
-
-  // ═══════ Lock Screen ═══════
 
   function handleUnlock() {
     const input = document.getElementById('lock-pin-input');
-    const pin = input.value;
-    if (Auth.tryUnlock(pin)) {
+    if (Auth.tryUnlock(input.value)) {
       document.getElementById('lock-screen').classList.add('hidden');
       document.getElementById('lock-error').classList.add('hidden');
       input.value = '';
@@ -593,15 +545,12 @@
     }
   }
 
-  // ═══════ Login Flow ═══════
-
   async function handleLogin(e) {
     e.preventDefault();
     const btn = document.getElementById('login-btn');
     const errEl = document.getElementById('login-error');
     errEl.classList.add('hidden');
     UI.setLoading(btn, true);
-
     try {
       await Auth.login(
         document.getElementById('login-username').value.trim(),
@@ -612,9 +561,7 @@
     } catch (err) {
       errEl.textContent = err.message === 'Invalid credentials' ? '아이디 또는 비밀번호가 올바르지 않습니다' : err.message;
       errEl.classList.remove('hidden');
-    } finally {
-      UI.setLoading(btn, false);
-    }
+    } finally { UI.setLoading(btn, false); }
   }
 
   async function handleSetup(e) {
@@ -630,46 +577,37 @@
       });
       UI.showToast('관리자 계정이 생성되었습니다. 로그인 해주세요.', 'success');
       document.getElementById('setup-section').classList.add('hidden');
-    } catch (err) {
-      UI.showToast(err.message, 'error');
-    }
-  }
-
-  // ═══════ Check if setup needed ═══════
-
-  async function checkSetupNeeded() {
-    try {
-      await Auth.request('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ username: '__check__', password: '__check__' }),
-      });
-    } catch (err) {
-      if (err.message === 'Invalid credentials') {
-        // Users exist, login screen is fine
-      }
-    }
+    } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
   // ═══════ Event Bindings ═══════
 
   document.addEventListener('DOMContentLoaded', () => {
+    // Tab navigation
+    document.querySelectorAll('.main-tab').forEach(tab => {
+      tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    // Forms
     document.getElementById('login-form').addEventListener('submit', handleLogin);
     document.getElementById('setup-form').addEventListener('submit', handleSetup);
-
     document.getElementById('bookmark-form').addEventListener('submit', saveBookmark);
     document.getElementById('category-form').addEventListener('submit', saveCategory);
     document.getElementById('user-form').addEventListener('submit', createUser);
     document.getElementById('pw-form').addEventListener('submit', changePassword);
 
+    // Header buttons
     document.getElementById('btn-add-bookmark').addEventListener('click', openAddBookmark);
     document.getElementById('btn-empty-add')?.addEventListener('click', openAddBookmark);
     document.getElementById('btn-settings').addEventListener('click', openSettings);
     document.getElementById('btn-admin').addEventListener('click', openAdmin);
 
+    // Panels
     document.getElementById('close-settings').addEventListener('click', () => UI.hidePanel('settings-panel'));
     document.getElementById('close-admin').addEventListener('click', () => UI.hidePanel('admin-panel'));
     document.getElementById('panel-overlay').addEventListener('click', UI.hideAllPanels);
 
+    // Settings
     document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
     document.getElementById('btn-save-lock').addEventListener('click', saveLockSettings);
     document.getElementById('btn-add-category').addEventListener('click', openAddCategory);
@@ -684,52 +622,43 @@
       Auth.logout();
     });
 
+    // User dropdown
     document.getElementById('user-badge').addEventListener('click', () => {
       document.getElementById('user-dropdown').classList.toggle('hidden');
     });
-
     document.addEventListener('click', e => {
       const badge = document.getElementById('user-badge');
       const dropdown = document.getElementById('user-dropdown');
-      if (!badge.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.classList.add('hidden');
-      }
+      if (!badge.contains(e.target) && !dropdown.contains(e.target)) dropdown.classList.add('hidden');
     });
 
+    // Modal close
     document.querySelectorAll('.modal-close, [data-modal]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const modalId = btn.dataset.modal;
-        if (modalId) UI.closeModal(modalId);
-      });
+      btn.addEventListener('click', () => { if (btn.dataset.modal) UI.closeModal(btn.dataset.modal); });
     });
 
+    // Search
     document.getElementById('search-input').addEventListener('input', renderBookmarks);
 
-    document.getElementById('lock-pin-input').addEventListener('keydown', e => {
-      if (e.key === 'Enter') handleUnlock();
-    });
+    // Lock
+    document.getElementById('lock-pin-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleUnlock(); });
 
-    // Show setup section toggle
-    const setupSection = document.getElementById('setup-section');
+    // Setup toggle (5 clicks on logo)
     const loginLogo = document.querySelector('.login-logo');
     if (loginLogo) {
       let clickCount = 0;
       loginLogo.addEventListener('click', () => {
         clickCount++;
-        if (clickCount >= 5) {
-          setupSection.classList.remove('hidden');
-          clickCount = 0;
-        }
+        if (clickCount >= 5) { document.getElementById('setup-section').classList.remove('hidden'); clickCount = 0; }
       });
     }
 
     init();
   });
 
-  // Periodic health re-check (every 60s)
   setInterval(() => {
     if (Auth.isLoggedIn() && document.getElementById('lock-screen').classList.contains('hidden')) {
-      checkHealthAll();
+      if (activeTab === 'bookmarks') checkHealthAll();
     }
   }, 60000);
 })();

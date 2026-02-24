@@ -1009,3 +1009,276 @@ body {
   margin-left: 6px;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ═══════════════ Main Tab Bar ═══════════════ */
+.main-tab-bar {
+  display: flex;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  gap: 0;
+}
+
+.main-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 20px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  color: var(--text-light);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition);
+}
+.main-tab i { font-size: 18px; }
+.main-tab:hover { color: var(--primary); }
+.main-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* ═══════════════ Calendar ═══════════════ */
+.calendar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 24px 12px;
+}
+.calendar-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  min-width: 160px;
+  text-align: center;
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  padding: 0 24px;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.calendar-weekdays .wd {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-light);
+  padding: 8px 0;
+}
+.calendar-weekdays .wd.sun { color: var(--danger); }
+.calendar-weekdays .wd.sat { color: var(--primary); }
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  padding: 0 24px 24px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0 24px;
+}
+
+.cal-cell {
+  background: var(--white);
+  min-height: 100px;
+  padding: 6px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.cal-cell:hover { background: var(--primary-bg); }
+.cal-cell.empty { cursor: default; background: var(--bg); }
+.cal-cell.empty:hover { background: var(--bg); }
+
+.cal-day-num {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  width: 26px;
+  height: 26px;
+  line-height: 26px;
+  text-align: center;
+  border-radius: 50%;
+}
+.cal-cell.today .cal-day-num {
+  background: var(--primary);
+  color: var(--white);
+}
+.cal-cell.sun .cal-day-num { color: var(--danger); }
+.cal-cell.sat .cal-day-num { color: var(--primary); }
+
+.cal-events {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cal-event-bar {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.cal-event-bar:hover { opacity: 0.85; }
+
+.cal-event-more {
+  font-size: 11px;
+  color: var(--text-light);
+  padding: 1px 6px;
+}
+
+/* ═══════════════ Color Picker ═══════════════ */
+.color-picker {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+}
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform var(--transition);
+  border: 2px solid transparent;
+}
+.color-dot:hover { transform: scale(1.15); }
+.color-dot.active { border-color: var(--text); transform: scale(1.15); }
+
+/* ═══════════════ Memos ═══════════════ */
+.memos-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 12px;
+}
+.memos-header h2 {
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.memos-header h2 i { color: var(--primary); }
+
+.memos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  padding: 8px 24px 24px;
+}
+
+.memo-card {
+  border-radius: var(--radius);
+  padding: 16px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+  box-shadow: var(--shadow-sm);
+}
+.memo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.memo-card.pinned {
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 1px var(--primary-light), var(--shadow-sm);
+}
+
+.memo-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.memo-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memo-pin-btn {
+  width: 28px !important;
+  height: 28px !important;
+  font-size: 14px !important;
+  flex-shrink: 0;
+}
+.memo-card.pinned .memo-pin-btn i { color: var(--primary); }
+
+.memo-card-body {
+  font-size: 13px;
+  color: var(--text-light);
+  line-height: 1.5;
+  flex: 1;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.memo-card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+.memo-card-date {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.memo-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 160px;
+  line-height: 1.6;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.memo-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(77,168,218,0.15);
+}
+
+/* ═══════════════ Responsive Additions ═══════════════ */
+@media (max-width: 768px) {
+  .main-tab-bar { padding: 0 10px; }
+  .main-tab { padding: 10px 14px; font-size: 13px; }
+  .main-tab span { display: none; }
+  .main-tab i { font-size: 20px; }
+  .calendar-grid { margin: 0 10px; padding: 0 0 10px; }
+  .calendar-header { padding: 14px 14px 8px; }
+  .cal-cell { min-height: 70px; padding: 4px; }
+  .cal-day-num { font-size: 11px; width: 22px; height: 22px; line-height: 22px; }
+  .cal-event-bar { font-size: 10px; padding: 1px 4px; }
+  .memos-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); padding: 8px 14px 14px; }
+  .memos-header { padding: 14px 14px 8px; }
+}

@@ -28,6 +28,10 @@ from lib.models import (
     SettingsUpdate,
     SetupRequest,
     PasswordChange,
+    EventCreate,
+    EventUpdate,
+    MemoCreate,
+    MemoUpdate,
 )
 
 app = FastAPI()
@@ -472,3 +476,166 @@ async def reset_password(user_id: str, req: dict, admin=Depends(get_admin_user))
         "id", user_id
     ).execute()
     return {"message": "Password reset", "new_password": new_password}
+
+
+# ── Events (Calendar) ──
+
+
+@app.get("/api/events")
+async def get_events(year: int, month: int, user=Depends(get_current_user)):
+    db = get_supabase()
+    start = f"{year}-{month:02d}-01"
+    if month == 12:
+        end = f"{year + 1}-01-01"
+    else:
+        end = f"{year}-{month + 1:02d}-01"
+
+    result = (
+        db.table("events")
+        .select("*")
+        .eq("user_id", user["sub"])
+        .gte("start_date", start)
+        .lt("start_date", end)
+        .order("start_date")
+        .order("start_time")
+        .execute()
+    )
+    return result.data
+
+
+@app.post("/api/events")
+async def create_event(req: EventCreate, user=Depends(get_current_user)):
+    db = get_supabase()
+    data = {
+        "user_id": user["sub"],
+        "title": req.title,
+        "start_date": req.start_date,
+        "start_time": req.start_time,
+        "end_date": req.end_date,
+        "description": req.description,
+        "color": req.color,
+        "remind_minutes": req.remind_minutes,
+    }
+    result = db.table("events").insert(data).execute()
+    return result.data[0]
+
+
+@app.put("/api/events/{event_id}")
+async def update_event(
+    event_id: str, req: EventUpdate, user=Depends(get_current_user)
+):
+    db = get_supabase()
+    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    result = (
+        db.table("events")
+        .update(data)
+        .eq("id", event_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return result.data[0]
+
+
+@app.delete("/api/events/{event_id}")
+async def delete_event(event_id: str, user=Depends(get_current_user)):
+    db = get_supabase()
+    result = (
+        db.table("events")
+        .delete()
+        .eq("id", event_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"message": "Deleted"}
+
+
+# ── Memos ──
+
+
+@app.get("/api/memos")
+async def get_memos(user=Depends(get_current_user)):
+    db = get_supabase()
+    result = (
+        db.table("memos")
+        .select("*")
+        .eq("user_id", user["sub"])
+        .order("is_pinned", desc=True)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    return result.data
+
+
+@app.post("/api/memos")
+async def create_memo(req: MemoCreate, user=Depends(get_current_user)):
+    db = get_supabase()
+    data = {
+        "user_id": user["sub"],
+        "title": req.title,
+        "content": req.content,
+        "color": req.color,
+    }
+    result = db.table("memos").insert(data).execute()
+    return result.data[0]
+
+
+@app.put("/api/memos/{memo_id}")
+async def update_memo(
+    memo_id: str, req: MemoUpdate, user=Depends(get_current_user)
+):
+    db = get_supabase()
+    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = (
+        db.table("memos")
+        .update(data)
+        .eq("id", memo_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Memo not found")
+    return result.data[0]
+
+
+@app.delete("/api/memos/{memo_id}")
+async def delete_memo(memo_id: str, user=Depends(get_current_user)):
+    db = get_supabase()
+    result = (
+        db.table("memos")
+        .delete()
+        .eq("id", memo_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Memo not found")
+    return {"message": "Deleted"}
+
+
+@app.patch("/api/memos/{memo_id}/pin")
+async def toggle_pin_memo(memo_id: str, user=Depends(get_current_user)):
+    db = get_supabase()
+    current = (
+        db.table("memos")
+        .select("is_pinned")
+        .eq("id", memo_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not current.data:
+        raise HTTPException(status_code=404, detail="Memo not found")
+    new_val = not current.data[0]["is_pinned"]
+    result = (
+        db.table("memos")
+        .update({"is_pinned": new_val})
+        .eq("id", memo_id)
+        .execute()
+    )
+    return result.data[0]
