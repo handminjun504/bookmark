@@ -1,22 +1,21 @@
 from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
-from passlib.context import CryptContext
+import bcrypt
 from lib.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 import secrets
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
-def _truncate(password: str) -> str:
-    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
-
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(_truncate(password))
+    pw = password.encode("utf-8")[:72]
+    return bcrypt.hashpw(pw, bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(_truncate(plain), hashed)
+    pw = plain.encode("utf-8")[:72]
+    try:
+        return bcrypt.checkpw(pw, hashed.encode("utf-8"))
+    except Exception:
+        return False
 
 
 def create_token(user_id: str, username: str, is_admin: bool) -> str:

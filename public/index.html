@@ -431,7 +431,7 @@
     <div class="modal-content modal-sm">
       <div class="modal-header"><h3>사용자 생성</h3><button class="icon-btn modal-close" data-modal="user-modal"><i class="ri-close-line"></i></button></div>
       <form id="user-form">
-        <div class="input-group"><i class="ri-user-line"></i><input type="text" id="new-user-id" placeholder="아이디" required /></div>
+        <div class="input-group"><i class="ri-user-line"></i><input type="text" id="new-user-id" placeholder="아이디" autocomplete="username" required /></div>
         <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="new-user-pw" placeholder="초기 비밀번호" autocomplete="new-password" required /></div>
         <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="new-user-name" placeholder="표시 이름" required /></div>
         <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button><button type="submit" class="btn btn-primary">생성</button></div>
@@ -442,6 +442,7 @@
     <div class="modal-content modal-sm">
       <div class="modal-header"><h3>비밀번호 변경</h3><button class="icon-btn modal-close" data-modal="pw-modal"><i class="ri-close-line"></i></button></div>
       <form id="pw-form">
+        <input type="text" name="username" autocomplete="username" class="hidden" aria-hidden="true" tabindex="-1" />
         <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="pw-current" placeholder="현재 비밀번호" autocomplete="current-password" required /></div>
         <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-new" placeholder="새 비밀번호" autocomplete="new-password" required /></div>
         <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-confirm" placeholder="새 비밀번호 확인" autocomplete="new-password" required /></div>
