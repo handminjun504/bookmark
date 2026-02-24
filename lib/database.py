@@ -1,11 +1,125 @@
-from supabase import create_client, Client
+import httpx
 from lib.config import SUPABASE_URL, SUPABASE_KEY
 
-_client: Client = None
+
+class SupabaseTable:
+    """Lightweight Supabase PostgREST client using httpx (no heavy SDK)."""
+
+    def __init__(self, base_url: str, api_key: str):
+        self.base_url = base_url.rstrip("/")
+        self.rest_url = f"{self.base_url}/rest/v1"
+        self.headers = {
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=representation",
+        }
+
+    def table(self, name: str):
+        return QueryBuilder(self.rest_url, self.headers, name)
 
 
-def get_supabase() -> Client:
+class QueryResult:
+    def __init__(self, data):
+        self.data = data
+
+
+class QueryBuilder:
+    def __init__(self, rest_url, headers, table):
+        self._url = f"{rest_url}/{table}"
+        self._headers = dict(headers)
+        self._params = {}
+        self._method = "GET"
+        self._body = None
+
+    def select(self, columns="*"):
+        self._params["select"] = columns
+        self._method = "GET"
+        return self
+
+    def insert(self, data):
+        self._body = data if isinstance(data, list) else [data]
+        self._method = "POST"
+        return self
+
+    def update(self, data):
+        self._body = data
+        self._method = "PATCH"
+        return self
+
+    def delete(self):
+        self._method = "DELETE"
+        return self
+
+    def eq(self, col, val):
+        self._params[col] = f"eq.{val}"
+        return self
+
+    def neq(self, col, val):
+        self._params[col] = f"neq.{val}"
+        return self
+
+    def gt(self, col, val):
+        self._params[col] = f"gt.{val}"
+        return self
+
+    def gte(self, col, val):
+        self._params[col] = f"gte.{val}"
+        return self
+
+    def lt(self, col, val):
+        self._params[col] = f"lt.{val}"
+        return self
+
+    def lte(self, col, val):
+        self._params[col] = f"lte.{val}"
+        return self
+
+    def order(self, col, desc=False):
+        direction = "desc" if desc else "asc"
+        existing = self._params.get("order", "")
+        if existing:
+            self._params["order"] = f"{existing},{col}.{direction}"
+        else:
+            self._params["order"] = f"{col}.{direction}"
+        return self
+
+    def limit(self, count):
+        self._headers["Range"] = f"0-{count - 1}"
+        return self
+
+    def execute(self):
+        with httpx.Client(timeout=15) as client:
+            if self._method == "GET":
+                r = client.get(self._url, headers=self._headers, params=self._params)
+            elif self._method == "POST":
+                r = client.post(self._url, headers=self._headers, params=self._params, json=self._body)
+            elif self._method == "PATCH":
+                r = client.patch(self._url, headers=self._headers, params=self._params, json=self._body)
+            elif self._method == "DELETE":
+                r = client.delete(self._url, headers=self._headers, params=self._params)
+            else:
+                raise ValueError(f"Unknown method: {self._method}")
+
+        if r.status_code >= 400:
+            raise Exception(f"Supabase error {r.status_code}: {r.text}")
+
+        try:
+            data = r.json()
+        except Exception:
+            data = []
+
+        if isinstance(data, dict):
+            data = [data]
+
+        return QueryResult(data)
+
+
+_client = None
+
+
+def get_supabase():
     global _client
     if _client is None:
-        _client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        _client = SupabaseTable(SUPABASE_URL, SUPABASE_KEY)
     return _client

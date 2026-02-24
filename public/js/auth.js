@@ -14,7 +14,13 @@ const Auth = (() => {
       logout();
       throw new Error('Session expired');
     }
-    const data = await res.json();
+    let data;
+    const text = await res.text();
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error(res.ok ? text : `서버 오류 (${res.status}): ${text.substring(0, 100)}`);
+    }
     if (!res.ok) throw new Error(data.detail || 'Request failed');
     return data;
   }
