@@ -7,12 +7,16 @@ import secrets
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def _truncate(password: str) -> str:
+    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
+
+
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_truncate(password))
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(_truncate(plain), hashed)
 
 
 def create_token(user_id: str, username: str, is_admin: bool) -> str:
