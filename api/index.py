@@ -1,10 +1,12 @@
 import sys
 import os
+import traceback
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
@@ -43,6 +45,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    print(f"[ERROR] {request.url}: {exc}\n{tb}", file=sys.stderr, flush=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal error: {str(exc)}"},
+    )
+
+
+@app.get("/api/ping")
+async def ping():
+    return {"status": "ok", "supabase_url": os.getenv("SUPABASE_URL", "NOT SET")[:30]}
 
 
 # ── Dependencies ──

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>통합접속</title>
   <meta name="theme-color" content="#4DA8DA" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="/manifest.json" />
   <link rel="icon" type="image/png" href="/icons/icon-192.png" />
@@ -28,11 +28,11 @@
       <form id="login-form" autocomplete="off">
         <div class="input-group">
           <i class="ri-user-line"></i>
-          <input type="text" id="login-username" placeholder="아이디" required />
+          <input type="text" id="login-username" placeholder="아이디" autocomplete="username" required />
         </div>
         <div class="input-group">
           <i class="ri-lock-line"></i>
-          <input type="password" id="login-password" placeholder="비밀번호" required />
+          <input type="password" id="login-password" placeholder="비밀번호" autocomplete="current-password" required />
         </div>
         <label class="checkbox-label">
           <input type="checkbox" id="login-remember" />
@@ -48,11 +48,11 @@
         <form id="setup-form" autocomplete="off">
           <div class="input-group">
             <i class="ri-admin-line"></i>
-            <input type="text" id="setup-username" placeholder="관리자 아이디" required />
+            <input type="text" id="setup-username" placeholder="관리자 아이디" autocomplete="username" required />
           </div>
           <div class="input-group">
             <i class="ri-lock-line"></i>
-            <input type="password" id="setup-password" placeholder="관리자 비밀번호" required />
+            <input type="password" id="setup-password" placeholder="관리자 비밀번호" autocomplete="new-password" required />
           </div>
           <div class="input-group">
             <i class="ri-user-heart-line"></i>
@@ -198,7 +198,7 @@
           <label class="field-label">잠금 해제 PIN (숫자 1~4자리)</label>
           <div class="input-group">
             <i class="ri-lock-password-line"></i>
-            <input type="password" id="setting-pin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="PIN 입력" />
+            <input type="password" id="setting-pin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="PIN 입력" autocomplete="off" />
           </div>
         </div>
         <button class="btn btn-primary btn-sm" id="btn-save-lock">저장</button>
@@ -239,7 +239,7 @@
       <p>화면이 잠겼습니다</p>
       <p class="lock-sub">PIN을 입력하세요</p>
       <div class="pin-input-group">
-        <input type="password" id="lock-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autofocus />
+        <input type="password" id="lock-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus />
       </div>
       <div id="lock-error" class="error-msg hidden"></div>
     </div>
@@ -432,7 +432,7 @@
       <div class="modal-header"><h3>사용자 생성</h3><button class="icon-btn modal-close" data-modal="user-modal"><i class="ri-close-line"></i></button></div>
       <form id="user-form">
         <div class="input-group"><i class="ri-user-line"></i><input type="text" id="new-user-id" placeholder="아이디" required /></div>
-        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="new-user-pw" placeholder="초기 비밀번호" required /></div>
+        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="new-user-pw" placeholder="초기 비밀번호" autocomplete="new-password" required /></div>
         <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="new-user-name" placeholder="표시 이름" required /></div>
         <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button><button type="submit" class="btn btn-primary">생성</button></div>
       </form>
@@ -442,9 +442,9 @@
     <div class="modal-content modal-sm">
       <div class="modal-header"><h3>비밀번호 변경</h3><button class="icon-btn modal-close" data-modal="pw-modal"><i class="ri-close-line"></i></button></div>
       <form id="pw-form">
-        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="pw-current" placeholder="현재 비밀번호" required /></div>
-        <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-new" placeholder="새 비밀번호" required /></div>
-        <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-confirm" placeholder="새 비밀번호 확인" required /></div>
+        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="pw-current" placeholder="현재 비밀번호" autocomplete="current-password" required /></div>
+        <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-new" placeholder="새 비밀번호" autocomplete="new-password" required /></div>
+        <div class="input-group"><i class="ri-lock-password-line"></i><input type="password" id="pw-confirm" placeholder="새 비밀번호 확인" autocomplete="new-password" required /></div>
         <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="pw-modal">취소</button><button type="submit" class="btn btn-primary">변경</button></div>
       </form>
     </div>

@@ -2,6 +2,15 @@ import httpx
 from lib.config import SUPABASE_URL, SUPABASE_KEY
 
 
+def _pg_value(val):
+    """Convert Python value to PostgREST filter string."""
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return "true" if val else "false"
+    return str(val)
+
+
 class SupabaseTable:
     """Lightweight Supabase PostgREST client using httpx (no heavy SDK)."""
 
@@ -28,17 +37,17 @@ class QueryBuilder:
     def __init__(self, rest_url, headers, table):
         self._url = f"{rest_url}/{table}"
         self._headers = dict(headers)
-        self._params = {}
+        self._params = []
         self._method = "GET"
         self._body = None
 
     def select(self, columns="*"):
-        self._params["select"] = columns
+        self._params.append(("select", columns))
         self._method = "GET"
         return self
 
     def insert(self, data):
-        self._body = data if isinstance(data, list) else [data]
+        self._body = data if isinstance(data, list) else data
         self._method = "POST"
         return self
 
@@ -52,36 +61,40 @@ class QueryBuilder:
         return self
 
     def eq(self, col, val):
-        self._params[col] = f"eq.{val}"
+        self._params.append((col, f"eq.{_pg_value(val)}"))
         return self
 
     def neq(self, col, val):
-        self._params[col] = f"neq.{val}"
+        self._params.append((col, f"neq.{_pg_value(val)}"))
         return self
 
     def gt(self, col, val):
-        self._params[col] = f"gt.{val}"
+        self._params.append((col, f"gt.{_pg_value(val)}"))
         return self
 
     def gte(self, col, val):
-        self._params[col] = f"gte.{val}"
+        self._params.append((col, f"gte.{_pg_value(val)}"))
         return self
 
     def lt(self, col, val):
-        self._params[col] = f"lt.{val}"
+        self._params.append((col, f"lt.{_pg_value(val)}"))
         return self
 
     def lte(self, col, val):
-        self._params[col] = f"lte.{val}"
+        self._params.append((col, f"lte.{_pg_value(val)}"))
+        return self
+
+    def is_(self, col, val):
+        self._params.append((col, f"is.{_pg_value(val)}"))
         return self
 
     def order(self, col, desc=False):
         direction = "desc" if desc else "asc"
-        existing = self._params.get("order", "")
-        if existing:
-            self._params["order"] = f"{existing},{col}.{direction}"
-        else:
-            self._params["order"] = f"{col}.{direction}"
+        for i, (k, v) in enumerate(self._params):
+            if k == "order":
+                self._params[i] = ("order", f"{v},{col}.{direction}")
+                return self
+        self._params.append(("order", f"{col}.{direction}"))
         return self
 
     def limit(self, count):
@@ -89,15 +102,16 @@ class QueryBuilder:
         return self
 
     def execute(self):
+        params = self._params
         with httpx.Client(timeout=15) as client:
             if self._method == "GET":
-                r = client.get(self._url, headers=self._headers, params=self._params)
+                r = client.get(self._url, headers=self._headers, params=params)
             elif self._method == "POST":
-                r = client.post(self._url, headers=self._headers, params=self._params, json=self._body)
+                r = client.post(self._url, headers=self._headers, params=params, json=self._body)
             elif self._method == "PATCH":
-                r = client.patch(self._url, headers=self._headers, params=self._params, json=self._body)
+                r = client.patch(self._url, headers=self._headers, params=params, json=self._body)
             elif self._method == "DELETE":
-                r = client.delete(self._url, headers=self._headers, params=self._params)
+                r = client.delete(self._url, headers=self._headers, params=params)
             else:
                 raise ValueError(f"Unknown method: {self._method}")
 
@@ -111,6 +125,8 @@ class QueryBuilder:
 
         if isinstance(data, dict):
             data = [data]
+        if not isinstance(data, list):
+            data = [data] if data else []
 
         return QueryResult(data)
 
