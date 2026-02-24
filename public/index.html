@@ -179,7 +179,7 @@
         </div>
         <button class="btn btn-primary btn-sm" id="btn-save-profile">저장</button>
       </div>
-      <div class="setting-group">
+      <form class="setting-group" id="lock-settings-form" autocomplete="off" onsubmit="return false">
         <h3>화면 잠금</h3>
         <label class="toggle-label">
           <span>자동 잠금</span>
@@ -202,7 +202,7 @@
           </div>
         </div>
         <button class="btn btn-primary btn-sm" id="btn-save-lock">저장</button>
-      </div>
+      </form>
       <div class="setting-group">
         <h3>카테고리 관리</h3>
         <div id="category-list" class="category-manage-list"></div>
@@ -234,7 +234,7 @@
 
   <!-- ══════ Lock Screen ══════ -->
   <div id="lock-screen" class="lock-screen hidden">
-    <div class="lock-content">
+    <form class="lock-content" id="lock-form" autocomplete="off" onsubmit="return false">
       <i class="ri-lock-line lock-icon"></i>
       <p>화면이 잠겼습니다</p>
       <p class="lock-sub">PIN을 입력하세요</p>
@@ -242,7 +242,7 @@
         <input type="password" id="lock-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autofocus />
       </div>
       <div id="lock-error" class="error-msg hidden"></div>
-    </div>
+    </form>
   </div>
 
   <!-- ══════ Bookmark Modal ══════ -->
