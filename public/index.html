@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>통합접속</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+  <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4.6.0/fonts/remixicon.min.css" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- ══════ Login Screen ══════ -->
+  <div id="login-screen" class="screen">
+    <div class="login-container">
+      <div class="login-logo">
+        <i class="ri-link-m"></i>
+        <h1>통합접속</h1>
+        <p>업무 서비스 통합 관리</p>
+      </div>
+      <form id="login-form" autocomplete="off">
+        <div class="input-group">
+          <i class="ri-user-line"></i>
+          <input type="text" id="login-username" placeholder="아이디" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-lock-line"></i>
+          <input type="password" id="login-password" placeholder="비밀번호" required />
+        </div>
+        <label class="checkbox-label">
+          <input type="checkbox" id="login-remember" />
+          <span>이 PC 기억하기 (자동 로그인)</span>
+        </label>
+        <button type="submit" class="btn btn-primary btn-full" id="login-btn">
+          로그인
+        </button>
+        <div id="login-error" class="error-msg hidden"></div>
+      </form>
+
+      <div id="setup-section" class="hidden">
+        <div class="divider"><span>최초 설정</span></div>
+        <form id="setup-form" autocomplete="off">
+          <div class="input-group">
+            <i class="ri-admin-line"></i>
+            <input type="text" id="setup-username" placeholder="관리자 아이디" required />
+          </div>
+          <div class="input-group">
+            <i class="ri-lock-line"></i>
+            <input type="password" id="setup-password" placeholder="관리자 비밀번호" required />
+          </div>
+          <div class="input-group">
+            <i class="ri-user-heart-line"></i>
+            <input type="text" id="setup-display" placeholder="표시 이름" required />
+          </div>
+          <button type="submit" class="btn btn-accent btn-full">
+            관리자 계정 생성
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Dashboard Screen ══════ -->
+  <div id="dashboard-screen" class="screen hidden">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <i class="ri-link-m header-logo-icon"></i>
+        <span class="header-title">통합접속</span>
+      </div>
+      <div class="header-center">
+        <div class="search-box">
+          <i class="ri-search-line"></i>
+          <input type="text" id="search-input" placeholder="검색..." />
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="icon-btn" id="btn-add-bookmark" title="북마크 추가">
+          <i class="ri-add-circle-line"></i>
+        </button>
+        <button class="icon-btn" id="btn-settings" title="설정">
+          <i class="ri-settings-3-line"></i>
+        </button>
+        <button class="icon-btn" id="btn-admin" title="관리자" style="display:none">
+          <i class="ri-admin-line"></i>
+        </button>
+        <div class="user-badge" id="user-badge">
+          <span id="user-display-name"></span>
+          <i class="ri-arrow-down-s-line"></i>
+        </div>
+        <div class="user-dropdown hidden" id="user-dropdown">
+          <button id="btn-change-pw"><i class="ri-key-line"></i> 비밀번호 변경</button>
+          <button id="btn-logout"><i class="ri-logout-box-line"></i> 로그아웃</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content" id="main-content">
+      <div class="category-tabs" id="category-tabs">
+        <button class="cat-tab active" data-cat="all">
+          <i class="ri-apps-line"></i> 전체
+        </button>
+      </div>
+      <div class="bookmarks-grid" id="bookmarks-grid"></div>
+      <div class="empty-state hidden" id="empty-state">
+        <i class="ri-bookmark-line"></i>
+        <p>등록된 북마크가 없습니다</p>
+        <button class="btn btn-primary" id="btn-empty-add">
+          <i class="ri-add-line"></i> 첫 번째 북마크 추가
+        </button>
+      </div>
+    </main>
+  </div>
+
+  <!-- ══════ Settings Panel ══════ -->
+  <div id="settings-panel" class="side-panel hidden">
+    <div class="panel-header">
+      <h2><i class="ri-settings-3-line"></i> 설정</h2>
+      <button class="icon-btn" id="close-settings"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="panel-body">
+      <div class="setting-group">
+        <h3>프로필</h3>
+        <div class="input-group">
+          <i class="ri-user-line"></i>
+          <input type="text" id="setting-display-name" placeholder="표시 이름" />
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-save-profile">저장</button>
+      </div>
+      <div class="setting-group">
+        <h3>화면 잠금</h3>
+        <label class="toggle-label">
+          <span>자동 잠금</span>
+          <input type="checkbox" id="setting-lock-enabled" class="toggle-input" />
+          <span class="toggle-slider"></span>
+        </label>
+        <div id="lock-options">
+          <label class="field-label">잠금 시간 (분)</label>
+          <select id="setting-lock-timeout" class="select-input">
+            <option value="60">1분</option>
+            <option value="180">3분</option>
+            <option value="300" selected>5분</option>
+            <option value="600">10분</option>
+            <option value="900">15분</option>
+          </select>
+          <label class="field-label">잠금 해제 PIN (숫자 1~4자리)</label>
+          <div class="input-group">
+            <i class="ri-lock-password-line"></i>
+            <input type="password" id="setting-pin" maxlength="4" pattern="[0-9]*" inputmode="numeric" placeholder="PIN 입력" />
+          </div>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-save-lock">저장</button>
+      </div>
+      <div class="setting-group">
+        <h3>카테고리 관리</h3>
+        <div id="category-list" class="category-manage-list"></div>
+        <button class="btn btn-outline btn-sm" id="btn-add-category">
+          <i class="ri-add-line"></i> 카테고리 추가
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Admin Panel ══════ -->
+  <div id="admin-panel" class="side-panel hidden">
+    <div class="panel-header">
+      <h2><i class="ri-admin-line"></i> 관리자</h2>
+      <button class="icon-btn" id="close-admin"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="panel-body">
+      <div class="setting-group">
+        <h3>사용자 관리</h3>
+        <button class="btn btn-primary btn-sm" id="btn-create-user">
+          <i class="ri-user-add-line"></i> 사용자 생성
+        </button>
+        <div id="admin-user-list" class="user-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Overlay for side panels ══════ -->
+  <div id="panel-overlay" class="panel-overlay hidden"></div>
+
+  <!-- ══════ Lock Screen ══════ -->
+  <div id="lock-screen" class="lock-screen hidden">
+    <div class="lock-content">
+      <i class="ri-lock-line lock-icon"></i>
+      <p>화면이 잠겼습니다</p>
+      <p class="lock-sub">PIN을 입력하세요</p>
+      <div class="pin-input-group">
+        <input type="password" id="lock-pin-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" autofocus />
+      </div>
+      <div id="lock-error" class="error-msg hidden"></div>
+    </div>
+  </div>
+
+  <!-- ══════ Bookmark Modal ══════ -->
+  <div id="bookmark-modal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="bookmark-modal-title">북마크 추가</h3>
+        <button class="icon-btn modal-close" data-modal="bookmark-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="bookmark-form">
+        <div class="input-group">
+          <i class="ri-text"></i>
+          <input type="text" id="bm-title" placeholder="제목 (예: 경리나라)" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-link"></i>
+          <input type="url" id="bm-url" placeholder="URL (예: https://...)" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-file-text-line"></i>
+          <input type="text" id="bm-desc" placeholder="설명 (선택사항)" />
+        </div>
+        <div class="form-row">
+          <div class="form-col">
+            <label class="field-label">카테고리</label>
+            <select id="bm-category" class="select-input">
+              <option value="">없음</option>
+            </select>
+          </div>
+          <div class="form-col">
+            <label class="field-label">유형</label>
+            <select id="bm-type" class="select-input">
+              <option value="web">🌐 웹사이트</option>
+              <option value="server">🖥️ 서버</option>
+              <option value="apps_script">📊 구글 앱스</option>
+              <option value="api">⚡ API</option>
+              <option value="other">📌 기타</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <i class="ri-heart-pulse-line"></i>
+          <input type="url" id="bm-health" placeholder="상태 확인 URL (선택사항)" />
+        </div>
+        <div class="input-group">
+          <i class="ri-image-line"></i>
+          <input type="url" id="bm-icon" placeholder="아이콘 URL (선택사항)" />
+        </div>
+        <input type="hidden" id="bm-edit-id" />
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="bookmark-modal">취소</button>
+          <button type="submit" class="btn btn-primary" id="bm-submit-btn">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ Category Modal ══════ -->
+  <div id="category-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3 id="category-modal-title">카테고리 추가</h3>
+        <button class="icon-btn modal-close" data-modal="category-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="category-form">
+        <div class="form-row">
+          <div class="form-col" style="flex:0 0 80px">
+            <label class="field-label">아이콘</label>
+            <input type="text" id="cat-icon" class="emoji-input" value="📁" />
+          </div>
+          <div class="form-col">
+            <label class="field-label">이름</label>
+            <input type="text" id="cat-name" placeholder="카테고리 이름" required />
+          </div>
+        </div>
+        <input type="hidden" id="cat-edit-id" />
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="category-modal">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ User Create Modal ══════ -->
+  <div id="user-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>사용자 생성</h3>
+        <button class="icon-btn modal-close" data-modal="user-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="user-form">
+        <div class="input-group">
+          <i class="ri-user-line"></i>
+          <input type="text" id="new-user-id" placeholder="아이디" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-lock-line"></i>
+          <input type="password" id="new-user-pw" placeholder="초기 비밀번호" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-user-heart-line"></i>
+          <input type="text" id="new-user-name" placeholder="표시 이름" required />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button>
+          <button type="submit" class="btn btn-primary">생성</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ Password Change Modal ══════ -->
+  <div id="pw-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>비밀번호 변경</h3>
+        <button class="icon-btn modal-close" data-modal="pw-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="pw-form">
+        <div class="input-group">
+          <i class="ri-lock-line"></i>
+          <input type="password" id="pw-current" placeholder="현재 비밀번호" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-lock-password-line"></i>
+          <input type="password" id="pw-new" placeholder="새 비밀번호" required />
+        </div>
+        <div class="input-group">
+          <i class="ri-lock-password-line"></i>
+          <input type="password" id="pw-confirm" placeholder="새 비밀번호 확인" required />
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="pw-modal">취소</button>
+          <button type="submit" class="btn btn-primary">변경</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ Confirm Dialog ══════ -->
+  <div id="confirm-dialog" class="modal hidden">
+    <div class="modal-content modal-xs">
+      <div class="modal-header">
+        <h3 id="confirm-title">확인</h3>
+      </div>
+      <p id="confirm-message" class="confirm-msg"></p>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="confirm-cancel">취소</button>
+        <button class="btn btn-danger" id="confirm-ok">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ Toast ══════ -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="/js/auth.js"></script>
+  <script src="/js/ui.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
