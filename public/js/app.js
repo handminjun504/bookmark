@@ -679,9 +679,17 @@
 
   // ═══════ Browser View (Dynamic Tabs) ═══════
 
+  const isElectron = /electron/i.test(navigator.userAgent);
+
   async function openInBrowser(bm) {
-    const mode = bm.open_mode || 'auto';
     const url = bm.url;
+
+    if (isElectron) {
+      window.open(url, '_blank');
+      return;
+    }
+
+    const mode = bm.open_mode || 'auto';
 
     if (mode === 'external') {
       window.open(url, '_blank');
