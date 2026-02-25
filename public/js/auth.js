@@ -84,6 +84,7 @@ const Auth = (() => {
     _user = null;
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
+    localStorage.removeItem('device_token');
     stopLockTimer();
     if (window.electronAPI?.clearPasswordUser) {
       window.electronAPI.clearPasswordUser();
