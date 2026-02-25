@@ -281,6 +281,10 @@
     const user = Auth.getUser();
     document.getElementById('user-display-name').textContent = user.display_name;
 
+    if (isElectron && window.electronAPI?.setPasswordUser) {
+      window.electronAPI.setPasswordUser(user.id);
+    }
+
     const adminBtn = document.getElementById('btn-admin');
     if (Auth.isAdmin()) adminBtn.style.display = '';
     else adminBtn.style.display = 'none';

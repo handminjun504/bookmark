@@ -85,6 +85,9 @@ const Auth = (() => {
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
     stopLockTimer();
+    if (window.electronAPI?.clearPasswordUser) {
+      window.electronAPI.clearPasswordUser();
+    }
     location.reload();
   }
 
