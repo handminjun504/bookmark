@@ -3,6 +3,7 @@ const Calendar = (() => {
   let events = [];
   let weekTasks = [];
   let notifyTimers = [];
+  let holidayCache = {};
 
   const DAY_COLORS = [
     { cls: 'task-day-sun', label: '일' },
@@ -34,10 +35,26 @@ const Calendar = (() => {
     });
 
     document.getElementById('evt-recurrence').addEventListener('change', e => {
-      document.getElementById('evt-recurrence-end-wrap').style.display = e.target.value ? '' : 'none';
+      const hasRecurrence = !!e.target.value;
+      document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
+      document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
     });
 
     requestNotificationPermission();
+  }
+
+  async function loadHolidays(year) {
+    if (holidayCache[year]) return holidayCache[year];
+    try {
+      const res = await fetch(`/api/holidays?year=${year}`);
+      const data = await res.json();
+      const map = {};
+      data.forEach(h => { map[h.date] = h.name; });
+      holidayCache[year] = map;
+      return map;
+    } catch {
+      return {};
+    }
   }
 
   function navigate(dir) {
@@ -63,6 +80,7 @@ const Calendar = (() => {
     } catch {
       events = [];
     }
+    await loadHolidays(currentYear);
     render();
     scheduleNotifications();
     loadWeekTasks();
@@ -74,6 +92,7 @@ const Calendar = (() => {
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
     const today = new Date();
     const isCurrentMonth = today.getFullYear() === currentYear && today.getMonth() === currentMonth;
+    const holidays = holidayCache[currentYear] || {};
 
     let html = '';
 
@@ -88,9 +107,20 @@ const Calendar = (() => {
       const dow = (firstDay + d - 1) % 7;
       const isSun = dow === 0;
       const isSat = dow === 6;
+      const holidayName = holidays[dateStr];
+      const isHoliday = !!holidayName;
 
-      html += `<div class="cal-cell${isToday ? ' today' : ''}${isSun ? ' sun' : ''}${isSat ? ' sat' : ''}" data-date="${dateStr}">`;
+      let cellClass = 'cal-cell';
+      if (isToday) cellClass += ' today';
+      if (isSun) cellClass += ' sun';
+      if (isSat) cellClass += ' sat';
+      if (isHoliday) cellClass += ' holiday';
+
+      html += `<div class="${cellClass}" data-date="${dateStr}">`;
       html += `<span class="cal-day-num">${d}</span>`;
+      if (isHoliday) {
+        html += `<div class="cal-holiday-name">${escapeHtml(holidayName)}</div>`;
+      }
       if (dayEvents.length > 0) {
         html += '<div class="cal-events">';
         dayEvents.slice(0, 3).forEach(ev => {
@@ -204,6 +234,8 @@ const Calendar = (() => {
     document.getElementById('evt-color').value = '#4DA8DA';
     document.getElementById('evt-edit-id').value = '';
     document.getElementById('evt-recurrence-end-wrap').style.display = 'none';
+    document.getElementById('evt-skip-weekend-wrap').style.display = 'none';
+    document.getElementById('evt-skip-weekend').checked = true;
     resetColorPicker('evt-color-picker', '#4DA8DA');
     UI.openModal('event-modal');
   }
@@ -223,7 +255,10 @@ const Calendar = (() => {
     document.getElementById('evt-remind').value = ev.remind_minutes != null ? String(ev.remind_minutes) : '';
     document.getElementById('evt-recurrence').value = ev.recurrence_type || '';
     document.getElementById('evt-recurrence-end').value = ev.recurrence_end || '';
-    document.getElementById('evt-recurrence-end-wrap').style.display = ev.recurrence_type ? '' : 'none';
+    const hasRecurrence = !!ev.recurrence_type;
+    document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
+    document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
+    document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
     document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-color').value = ev.color || '#4DA8DA';
     resetColorPicker('evt-color-picker', ev.color || '#4DA8DA');
@@ -253,6 +288,7 @@ const Calendar = (() => {
       recurrence_end: recurrence ? (document.getElementById('evt-recurrence-end').value || null) : null,
       recurrence_interval: 1,
       is_task: document.getElementById('evt-is-task').checked,
+      skip_weekend: recurrence ? document.getElementById('evt-skip-weekend').checked : false,
     };
 
     try {

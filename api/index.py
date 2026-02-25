@@ -3,6 +3,7 @@ import os
 import traceback
 from datetime import datetime, timezone, date, timedelta
 from dateutil.relativedelta import relativedelta
+from holidayskr import is_holiday as kr_is_holiday, year_holidays as kr_year_holidays
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -531,6 +532,13 @@ async def reset_password(user_id: str, req: dict, admin=Depends(get_admin_user))
 # ── Events (Calendar) ──
 
 
+def _adjust_to_weekday(d):
+    """주말(토/일) 또는 한국 공휴일이면 직전 평일로 이동"""
+    while d.weekday() >= 5 or kr_is_holiday(d.isoformat()):
+        d -= timedelta(days=1)
+    return d
+
+
 def _expand_recurring(events_data, view_start: date, view_end: date):
     """Expand recurring events into individual date instances within the view range."""
     expanded = []
@@ -544,12 +552,14 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
         r_end = date.fromisoformat(ev["recurrence_end"]) if ev.get("recurrence_end") else view_end
         r_end = min(r_end, view_end)
         interval = ev.get("recurrence_interval") or 1
+        skip_weekend = ev.get("skip_weekend", False)
         current = base
 
         while current <= r_end:
-            if current >= view_start:
+            display_date = _adjust_to_weekday(current) if skip_weekend else current
+            if display_date >= view_start and display_date <= r_end:
                 instance = dict(ev)
-                instance["start_date"] = current.isoformat()
+                instance["start_date"] = display_date.isoformat()
                 instance["_recurring"] = True
                 expanded.append(instance)
 
@@ -566,6 +576,12 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
 
     expanded.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
     return expanded
+
+
+@app.get("/api/holidays")
+async def get_holidays(year: int):
+    holidays = kr_year_holidays(str(year))
+    return [{"date": h[0].isoformat(), "name": h[1]} for h in holidays]
 
 
 @app.get("/api/events")
@@ -626,6 +642,7 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         "recurrence_end": req.recurrence_end,
         "recurrence_interval": req.recurrence_interval,
         "is_task": req.is_task,
+        "skip_weekend": req.skip_weekend,
     }
     result = db.table("events").insert(data).execute()
     return result.data[0]

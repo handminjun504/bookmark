@@ -87,6 +87,7 @@ class EventCreate(BaseModel):
     recurrence_end: Optional[str] = None
     recurrence_interval: int = 1
     is_task: bool = False
+    skip_weekend: bool = False
 
 
 class EventUpdate(BaseModel):
@@ -101,6 +102,7 @@ class EventUpdate(BaseModel):
     recurrence_end: Optional[str] = None
     recurrence_interval: Optional[int] = None
     is_task: Optional[bool] = None
+    skip_weekend: Optional[bool] = None
 
 
 class MemoCreate(BaseModel):

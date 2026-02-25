@@ -494,7 +494,7 @@ body {
 
 /* ═══════════════ Main Content ═══════════════ */
 .main-content {
-  padding-bottom: 40px;
+  padding-bottom: 8px;
 }
 
 /* ═══════════════ Bookmarks Grid ═══════════════ */
@@ -1098,7 +1098,7 @@ body {
 /* ═══════════════ Calendar Layout ═══════════════ */
 .calendar-layout {
   display: flex;
-  min-height: calc(100vh - 120px);
+  min-height: calc(100vh - 110px);
 }
 
 .calendar-main { flex: 1; min-width: 0; }
@@ -1239,7 +1239,7 @@ body {
   padding: 20px 24px 12px;
 }
 .calendar-header h2 {
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
   min-width: 160px;
   text-align: center;
@@ -1253,7 +1253,7 @@ body {
   margin-bottom: 4px;
 }
 .calendar-weekdays .wd {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-light);
   padding: 8px 0;
@@ -1265,7 +1265,7 @@ body {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 1px;
-  padding: 0 24px 24px;
+  padding: 0 24px 8px;
   background: var(--border);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1274,7 +1274,7 @@ body {
 
 .cal-cell {
   background: var(--white);
-  min-height: 100px;
+  min-height: 120px;
   padding: 6px;
   cursor: pointer;
   transition: background var(--transition);
@@ -1285,12 +1285,12 @@ body {
 
 .cal-day-num {
   display: inline-block;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--text);
-  width: 26px;
-  height: 26px;
-  line-height: 26px;
+  width: 30px;
+  height: 30px;
+  line-height: 30px;
   text-align: center;
   border-radius: 50%;
 }
@@ -1300,6 +1300,21 @@ body {
 }
 .cal-cell.sun .cal-day-num { color: var(--danger); }
 .cal-cell.sat .cal-day-num { color: var(--primary); }
+
+.cal-cell.holiday { background: #FFF5F5; }
+.cal-cell.holiday:hover { background: #FFECEC; }
+.cal-cell.holiday .cal-day-num { color: var(--danger); }
+
+.cal-holiday-name {
+  font-size: 10px;
+  color: var(--danger);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+  opacity: 0.85;
+}
 
 .cal-events {
   margin-top: 4px;
