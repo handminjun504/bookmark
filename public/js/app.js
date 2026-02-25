@@ -822,7 +822,13 @@
     // Dynamic Tab: + button
     document.getElementById('btn-add-tab').addEventListener('click', () => {
       const url = prompt('URL을 입력하세요:', 'https://');
-      if (url && url !== 'https://') createDynTab(url);
+      if (url && url !== 'https://') {
+        if (isElectron) {
+          window.open(url, '_blank');
+        } else {
+          createDynTab(url);
+        }
+      }
     });
 
     // Search
