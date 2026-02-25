@@ -905,6 +905,18 @@
       window.__electronOpenTab = (url) => createDynTab(url);
     }
 
+    // Responsive zoom
+    const BASE_WIDTH = 1280;
+    const MIN_ZOOM = 0.65;
+    const MAX_ZOOM = 1;
+    function applyZoom() {
+      const w = window.innerWidth;
+      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, w / BASE_WIDTH));
+      document.body.style.zoom = zoom;
+    }
+    applyZoom();
+    window.addEventListener('resize', applyZoom);
+
     // Search
     document.getElementById('search-input').addEventListener('input', renderBookmarks);
 
