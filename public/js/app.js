@@ -88,6 +88,11 @@
     }
   }
 
+  function updateTabDivider() {
+    const divider = document.getElementById('tab-divider');
+    if (divider) divider.classList.toggle('visible', dynTabs.length > 0);
+  }
+
   function createDynTab(url, title) {
     const id = ++dynTabIdCounter;
     let hostname = '';
@@ -122,6 +127,7 @@
     el.appendChild(closeBtn);
     el.addEventListener('click', () => switchToDynTab(id));
     container.appendChild(el);
+    updateTabDivider();
 
     const framesContainer = document.getElementById('dynamic-tab-frames');
 
@@ -215,6 +221,8 @@
     const sel = isElectron ? 'webview' : 'iframe';
     const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
     if (frame) { frame.src = 'about:blank'; frame.remove(); }
+
+    updateTabDivider();
 
     if (activeDynTabId === id) {
       if (dynTabs.length > 0) {
@@ -864,8 +872,7 @@
 
     // Dynamic Tab: + button
     document.getElementById('btn-add-tab').addEventListener('click', () => {
-      const url = prompt('URL을 입력하세요:', 'https://');
-      if (url && url !== 'https://') createDynTab(url);
+      createDynTab('https://www.google.com', 'Google');
     });
 
     if (isElectron) {

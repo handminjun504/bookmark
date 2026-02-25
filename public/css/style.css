@@ -1436,6 +1436,17 @@ body {
 #dynamic-tabs {
   display: contents;
 }
+.tab-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: auto 4px;
+  flex-shrink: 0;
+  display: none;
+}
+.tab-divider.visible {
+  display: block;
+}
 
 .dyn-tab {
   display: flex;
