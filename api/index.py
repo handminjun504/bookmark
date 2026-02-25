@@ -359,6 +359,31 @@ async def delete_category(category_id: str, user=Depends(get_current_user)):
     return {"message": "Deleted"}
 
 
+# ── Embed Check ──
+
+
+@app.get("/api/check-embeddable")
+async def check_embeddable(url: str, user=Depends(get_current_user)):
+    try:
+        async with httpx.AsyncClient(
+            timeout=3.0, follow_redirects=True, verify=False
+        ) as client:
+            resp = await client.head(url)
+            xfo = resp.headers.get("x-frame-options", "").lower().strip()
+            csp = resp.headers.get("content-security-policy", "").lower()
+
+            if xfo in ("deny", "sameorigin"):
+                return {"embeddable": False, "reason": "x-frame-options"}
+
+            if "frame-ancestors" in csp:
+                if "'none'" in csp or "'self'" in csp:
+                    return {"embeddable": False, "reason": "csp"}
+
+            return {"embeddable": True}
+    except Exception:
+        return {"embeddable": False, "reason": "unreachable"}
+
+
 # ── Health Check ──
 
 

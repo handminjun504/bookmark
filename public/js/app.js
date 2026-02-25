@@ -545,7 +545,7 @@
 
   // ═══════ Browser View ═══════
 
-  function openInBrowser(bm) {
+  async function openInBrowser(bm) {
     const mode = bm.open_mode || 'auto';
     const url = bm.url;
 
@@ -554,6 +554,23 @@
       return;
     }
 
+    if (mode === 'auto') {
+      try {
+        const result = await Auth.request(`/check-embeddable?url=${encodeURIComponent(url)}`);
+        if (!result.embeddable) {
+          window.open(url, '_blank');
+          return;
+        }
+      } catch {
+        window.open(url, '_blank');
+        return;
+      }
+    }
+
+    showBrowserView(url);
+  }
+
+  function showBrowserView(url) {
     const browserView = document.getElementById('browser-view');
     const iframe = document.getElementById('browser-iframe');
     const loading = document.getElementById('browser-loading');
@@ -564,58 +581,14 @@
     loading.classList.remove('hidden');
     browserView.classList.remove('hidden');
 
-    iframe.src = '';
-
-    let loaded = false;
-    let fallbackTimer = null;
+    iframe.src = 'about:blank';
 
     const onLoad = () => {
-      loaded = true;
-      clearTimeout(fallbackTimer);
       loading.classList.add('hidden');
-      cleanup();
-    };
-
-    const onError = () => {
-      if (loaded) return;
-      clearTimeout(fallbackTimer);
-      cleanup();
-      browserFallback(url);
-    };
-
-    const cleanup = () => {
       iframe.removeEventListener('load', onLoad);
-      iframe.removeEventListener('error', onError);
     };
-
     iframe.addEventListener('load', onLoad);
-    iframe.addEventListener('error', onError);
-
-    if (mode === 'auto') {
-      fallbackTimer = setTimeout(() => {
-        if (!loaded) {
-          try {
-            const doc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (!doc || !doc.body || doc.body.innerHTML === '') {
-              cleanup();
-              browserFallback(url);
-              return;
-            }
-          } catch {
-            // cross-origin: iframe loaded but we can't access - that's OK
-          }
-          loading.classList.add('hidden');
-        }
-      }, 4000);
-    }
-
     iframe.src = url;
-  }
-
-  function browserFallback(url) {
-    closeBrowser();
-    window.open(url, '_blank');
-    UI.showToast('이 사이트는 내장 브라우저에서 열 수 없어 새 탭으로 이동합니다', 'info');
   }
 
   function closeBrowser() {
