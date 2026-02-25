@@ -553,6 +553,7 @@ body {
 }
 
 .bookmark-icon.type-web { background: #EBF5FB; color: #3498DB; }
+.bookmark-icon.type-google_sheet { background: #E8F5E9; color: #0F9D58; }
 .bookmark-icon.type-server { background: #E8F8F5; color: #1ABC9C; }
 .bookmark-icon.type-apps_script { background: #FEF9E7; color: #F39C12; }
 .bookmark-icon.type-api { background: #F4ECF7; color: #8E44AD; }

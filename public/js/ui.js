@@ -66,7 +66,8 @@ const UI = (() => {
   }
 
   const SERVICE_TYPES = {
-    web: { label: '웹사이트', icon: 'ri-global-line' },
+    web: { label: '웹사이트', icon: 'ri-global-line', useFavicon: true },
+    google_sheet: { label: '구글시트', icon: 'ri-file-excel-2-line', useFavicon: true },
     server: { label: '서버', icon: 'ri-server-line' },
     apps_script: { label: '구글 앱스', icon: 'ri-google-line' },
     api: { label: 'API', icon: 'ri-flashlight-line' },

@@ -392,9 +392,17 @@
     else if (health === 'online') statusClass = 'status-online';
     else if (health === 'offline') statusClass = 'status-offline';
 
-    const iconContent = b.icon_url
-      ? `<img src="${b.icon_url}" alt="" onerror="this.style.display='none';this.parentNode.innerHTML='<i class=\\'${typeInfo.icon}\\'></i>'" />`
-      : `<i class="${typeInfo.icon}"></i>`;
+    let iconContent;
+    if (b.icon_url) {
+      iconContent = `<img src="${b.icon_url}" alt="" onerror="this.style.display='none';this.parentNode.innerHTML='<i class=\\'${typeInfo.icon}\\'></i>'" />`;
+    } else if (typeInfo.useFavicon && b.url) {
+      try {
+        const domain = new URL(b.url).hostname;
+        iconContent = `<img src="https://www.google.com/s2/favicons?domain=${domain}&sz=64" alt="" onerror="this.style.display='none';this.parentNode.innerHTML='<i class=\\'${typeInfo.icon}\\'></i>'" />`;
+      } catch { iconContent = `<i class="${typeInfo.icon}"></i>`; }
+    } else {
+      iconContent = `<i class="${typeInfo.icon}"></i>`;
+    }
 
     const catName = b.categories?.name ? `${b.categories.icon || ''} ${b.categories.name}` : '';
 
