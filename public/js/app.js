@@ -905,17 +905,31 @@
       window.__electronOpenTab = (url) => createDynTab(url);
     }
 
-    // Responsive zoom
+    // Responsive zoom + Ctrl+Wheel manual zoom
     const BASE_WIDTH = 1280;
-    const MIN_ZOOM = 0.65;
-    const MAX_ZOOM = 1;
+    const MIN_ZOOM = 0.4;
+    const MAX_ZOOM = 2.0;
+    let manualZoom = null;
+    function autoZoom() {
+      return Math.min(1, Math.max(MIN_ZOOM, window.innerWidth / BASE_WIDTH));
+    }
+    function setZoom(z) {
+      z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+      manualZoom = z;
+      document.body.style.zoom = z;
+    }
     function applyZoom() {
-      const w = window.innerWidth;
-      const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, w / BASE_WIDTH));
-      document.body.style.zoom = zoom;
+      document.body.style.zoom = manualZoom ?? autoZoom();
     }
     applyZoom();
-    window.addEventListener('resize', applyZoom);
+    window.addEventListener('resize', () => { if (!manualZoom) applyZoom(); });
+    window.addEventListener('wheel', (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const current = manualZoom ?? autoZoom();
+      const step = 0.05;
+      setZoom(current + (e.deltaY < 0 ? step : -step));
+    }, { passive: false });
 
     // Search
     document.getElementById('search-input').addEventListener('input', renderBookmarks);
