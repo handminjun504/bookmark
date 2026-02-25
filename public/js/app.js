@@ -292,6 +292,13 @@
     Calendar.init();
     Memos.init();
     loadData();
+
+    const hashMatch = location.hash.match(/__open_tab=([^&]+)/);
+    if (hashMatch) {
+      const tabUrl = decodeURIComponent(hashMatch[1]);
+      history.replaceState(null, '', location.pathname + location.search);
+      setTimeout(() => createDynTab(tabUrl), 300);
+    }
   }
 
   async function loadData() {
