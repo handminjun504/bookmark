@@ -1,6 +1,6 @@
 {
-  "name": "통합접속",
-  "short_name": "통합접속",
+  "name": "LinkFlow",
+  "short_name": "LinkFlow",
   "description": "업무 서비스 통합 관리 대시보드",
   "start_url": "/",
   "display": "standalone",
