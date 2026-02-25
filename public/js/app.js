@@ -42,7 +42,7 @@
 
     const framesContainer = document.getElementById('dynamic-tab-frames');
     framesContainer.classList.remove('active');
-    framesContainer.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
+    framesContainer.querySelectorAll('iframe, webview').forEach(f => f.classList.remove('active'));
 
     const addBmBtn = document.getElementById('btn-add-bookmark');
     const searchBox = document.getElementById('search-box-wrap');
@@ -76,7 +76,8 @@
 
     const framesContainer = document.getElementById('dynamic-tab-frames');
     framesContainer.classList.add('active');
-    framesContainer.querySelectorAll('iframe').forEach(f => {
+    const sel = isElectron ? 'webview' : 'iframe';
+    framesContainer.querySelectorAll(sel).forEach(f => {
       f.classList.toggle('active', f.dataset.dynId === String(id));
     });
 
@@ -89,7 +90,9 @@
 
   function createDynTab(url, title) {
     const id = ++dynTabIdCounter;
-    const tab = { id, url, title: title || new URL(url).hostname };
+    let hostname = '';
+    try { hostname = new URL(url).hostname; } catch {}
+    const tab = { id, url, title: title || hostname || url };
     dynTabs.push(tab);
 
     const container = document.getElementById('dynamic-tabs');
@@ -99,7 +102,7 @@
 
     const favicon = document.createElement('img');
     favicon.className = 'dyn-tab-favicon';
-    favicon.src = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
+    favicon.src = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
     favicon.onerror = () => { favicon.style.display = 'none'; };
 
     const titleSpan = document.createElement('span');
@@ -134,16 +137,22 @@
         <div class="dtf-frame-wrap"></div>
       `;
       framesContainer.querySelector('#dtf-back').addEventListener('click', () => {
-        const iframe = framesContainer.querySelector('iframe.active');
-        if (iframe) try { iframe.contentWindow.history.back(); } catch {}
+        const frame = getActiveFrame();
+        if (!frame) return;
+        if (isElectron && frame.tagName === 'WEBVIEW') { if (frame.canGoBack()) frame.goBack(); }
+        else { try { frame.contentWindow.history.back(); } catch {} }
       });
       framesContainer.querySelector('#dtf-forward').addEventListener('click', () => {
-        const iframe = framesContainer.querySelector('iframe.active');
-        if (iframe) try { iframe.contentWindow.history.forward(); } catch {}
+        const frame = getActiveFrame();
+        if (!frame) return;
+        if (isElectron && frame.tagName === 'WEBVIEW') { if (frame.canGoForward()) frame.goForward(); }
+        else { try { frame.contentWindow.history.forward(); } catch {} }
       });
       framesContainer.querySelector('#dtf-refresh').addEventListener('click', () => {
-        const iframe = framesContainer.querySelector('iframe.active');
-        if (iframe && iframe.src !== 'about:blank') iframe.src = iframe.src;
+        const frame = getActiveFrame();
+        if (!frame) return;
+        if (isElectron && frame.tagName === 'WEBVIEW') frame.reload();
+        else if (frame.src !== 'about:blank') frame.src = frame.src;
       });
       framesContainer.querySelector('#dtf-external').addEventListener('click', () => {
         const t = dynTabs.find(t => t.id === activeDynTabId);
@@ -152,14 +161,47 @@
     }
 
     const frameWrap = framesContainer.querySelector('.dtf-frame-wrap');
-    const iframe = document.createElement('iframe');
-    iframe.dataset.dynId = id;
-    iframe.sandbox = 'allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
-    iframe.src = url;
-    frameWrap.appendChild(iframe);
+    let frame;
 
+    if (isElectron) {
+      frame = document.createElement('webview');
+      frame.dataset.dynId = id;
+      frame.setAttribute('allowpopups', '');
+      frame.setAttribute('partition', 'persist:main');
+      frame.src = url;
+      frame.addEventListener('page-title-updated', (e) => {
+        tab.title = e.title;
+        const sp = document.querySelector(`.dyn-tab[data-dyn-id="${id}"] .dyn-tab-title`);
+        if (sp) sp.textContent = e.title;
+      });
+      frame.addEventListener('page-favicon-updated', (e) => {
+        if (e.favicons?.[0]) {
+          const img = document.querySelector(`.dyn-tab[data-dyn-id="${id}"] .dyn-tab-favicon`);
+          if (img) { img.src = e.favicons[0]; img.style.display = ''; }
+        }
+      });
+      frame.addEventListener('did-navigate', (e) => {
+        tab.url = e.url;
+        if (activeDynTabId === id) {
+          const bar = framesContainer.querySelector('.dtf-url-bar');
+          if (bar) bar.textContent = e.url;
+        }
+      });
+    } else {
+      frame = document.createElement('iframe');
+      frame.dataset.dynId = id;
+      frame.sandbox = 'allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
+      frame.src = url;
+    }
+
+    frameWrap.appendChild(frame);
     switchToDynTab(id);
     return tab;
+  }
+
+  function getActiveFrame() {
+    const sel = isElectron ? 'webview.active' : 'iframe.active';
+    return document.querySelector(`#dynamic-tab-frames .dtf-frame-wrap ${sel}`);
   }
 
   function closeDynTab(id) {
@@ -170,8 +212,9 @@
     const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
     if (tabEl) tabEl.remove();
 
-    const iframe = document.querySelector(`#dynamic-tab-frames iframe[data-dyn-id="${id}"]`);
-    if (iframe) { iframe.src = 'about:blank'; iframe.remove(); }
+    const sel = isElectron ? 'webview' : 'iframe';
+    const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
+    if (frame) { frame.src = 'about:blank'; frame.remove(); }
 
     if (activeDynTabId === id) {
       if (dynTabs.length > 0) {
@@ -685,7 +728,7 @@
     const url = bm.url;
 
     if (isElectron) {
-      window.open(url, '_blank');
+      createDynTab(url, bm.title);
       return;
     }
 
@@ -822,14 +865,12 @@
     // Dynamic Tab: + button
     document.getElementById('btn-add-tab').addEventListener('click', () => {
       const url = prompt('URL을 입력하세요:', 'https://');
-      if (url && url !== 'https://') {
-        if (isElectron) {
-          window.open(url, '_blank');
-        } else {
-          createDynTab(url);
-        }
-      }
+      if (url && url !== 'https://') createDynTab(url);
     });
+
+    if (isElectron) {
+      window.__electronOpenTab = (url) => createDynTab(url);
+    }
 
     // Search
     document.getElementById('search-input').addEventListener('input', renderBookmarks);
