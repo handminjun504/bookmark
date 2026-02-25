@@ -43,6 +43,17 @@ body {
   min-height: 100vh;
   width: 100%;
 }
+#dashboard-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+#dashboard-screen .tab-content.active {
+  flex: 1;
+  overflow-y: auto;
+}
+#dashboard-screen.hidden { display: none !important; }
 
 /* ═══════════════ Login Screen ═══════════════ */
 #login-screen {
@@ -1405,31 +1416,98 @@ body {
   box-shadow: 0 0 0 3px rgba(77,168,218,0.15);
 }
 
-/* ═══════════════ Browser View ═══════════════ */
-.browser-view {
-  position: fixed;
-  inset: 0;
-  z-index: 300;
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
+/* ═══════════════ Dynamic Tabs ═══════════════ */
+#dynamic-tabs {
+  display: contents;
 }
 
-.browser-toolbar {
-  height: 48px;
+.dyn-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 6px 8px 14px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  color: var(--text-light);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--transition);
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.dyn-tab:hover { color: var(--primary); }
+.dyn-tab.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.dyn-tab-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.dyn-tab-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 110px;
+}
+
+.dyn-tab-close {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #999;
+  font-size: 15px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.dyn-tab-close:hover { background: var(--danger); color: #fff; }
+
+.tab-add-btn {
+  padding: 10px 12px !important;
+  gap: 0 !important;
+  opacity: 0.6;
+}
+.tab-add-btn:hover { opacity: 1; }
+.tab-add-btn span { display: none !important; }
+
+/* Dynamic Tab Frames */
+#dynamic-tab-frames {
+  display: none;
+}
+#dynamic-tab-frames.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.dtf-toolbar {
+  height: 40px;
   background: var(--white);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 0 8px;
-  box-shadow: var(--shadow-sm);
   flex-shrink: 0;
 }
 
-.browser-btn {
-  width: 36px;
-  height: 36px;
+.dtf-btn {
+  width: 32px;
+  height: 32px;
   border: none;
   background: transparent;
   color: var(--text-light);
@@ -1438,21 +1516,20 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 16px;
   transition: all var(--transition);
   flex-shrink: 0;
 }
-.browser-btn:hover { background: var(--primary-bg); color: var(--primary); }
-.browser-btn-close:hover { background: var(--danger-light); color: var(--danger); }
+.dtf-btn:hover { background: var(--primary-bg); color: var(--primary); }
 
-.browser-url-bar {
+.dtf-url-bar {
   flex: 1;
-  height: 32px;
+  height: 28px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 0 14px;
-  font-size: 13px;
+  border-radius: 14px;
+  padding: 0 12px;
+  font-size: 12px;
   color: var(--text-light);
   display: flex;
   align-items: center;
@@ -1463,20 +1540,24 @@ body {
   user-select: all;
 }
 
-.browser-iframe-wrap {
+.dtf-frame-wrap {
   flex: 1;
   position: relative;
   overflow: hidden;
 }
 
-.browser-iframe-wrap iframe {
+.dtf-frame-wrap iframe {
   width: 100%;
   height: 100%;
   border: none;
   background: var(--white);
+  display: none;
+}
+.dtf-frame-wrap iframe.active {
+  display: block;
 }
 
-.browser-loading {
+.dtf-loading {
   position: absolute;
   inset: 0;
   background: rgba(240, 246, 250, 0.9);
@@ -1488,8 +1569,9 @@ body {
   color: var(--text-light);
   font-size: 14px;
 }
+.dtf-loading.hidden { display: none; }
 
-.browser-spinner {
+.dtf-spinner {
   width: 32px;
   height: 32px;
   border: 3px solid var(--border);

@@ -7,6 +7,9 @@
   let dragSrcId = null;
   let activeTab = 'bookmarks';
   let browserCurrentUrl = '';
+  let dynTabs = [];
+  let dynTabIdCounter = 0;
+  let activeDynTabId = null;
 
   // ═══════ Init ═══════
 
@@ -27,12 +30,19 @@
 
   function switchTab(tab) {
     activeTab = tab;
-    document.querySelectorAll('.main-tab').forEach(t => {
+    activeDynTabId = null;
+
+    document.querySelectorAll('.main-tab:not(.tab-add-btn)').forEach(t => {
       t.classList.toggle('active', t.dataset.tab === tab);
     });
+    document.querySelectorAll('.dyn-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => {
       c.classList.toggle('active', c.id === `tab-${tab}`);
     });
+
+    const framesContainer = document.getElementById('dynamic-tab-frames');
+    framesContainer.classList.remove('active');
+    framesContainer.querySelectorAll('iframe').forEach(f => f.classList.remove('active'));
 
     const addBmBtn = document.getElementById('btn-add-bookmark');
     const searchBox = document.getElementById('search-box-wrap');
@@ -47,6 +57,130 @@
 
     if (tab === 'calendar') Calendar.load();
     if (tab === 'memos') Memos.load();
+  }
+
+  function switchToDynTab(id) {
+    activeDynTabId = id;
+    activeTab = '__dyn__';
+
+    document.querySelectorAll('.main-tab:not(.tab-add-btn)').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.dyn-tab').forEach(t => {
+      t.classList.toggle('active', t.dataset.dynId === String(id));
+    });
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    const addBmBtn = document.getElementById('btn-add-bookmark');
+    const searchBox = document.getElementById('search-box-wrap');
+    addBmBtn.style.display = 'none';
+    searchBox.style.display = 'none';
+
+    const framesContainer = document.getElementById('dynamic-tab-frames');
+    framesContainer.classList.add('active');
+    framesContainer.querySelectorAll('iframe').forEach(f => {
+      f.classList.toggle('active', f.dataset.dynId === String(id));
+    });
+
+    const tab = dynTabs.find(t => t.id === id);
+    if (tab) {
+      const urlBar = framesContainer.querySelector('.dtf-url-bar');
+      if (urlBar) urlBar.textContent = tab.url;
+    }
+  }
+
+  function createDynTab(url, title) {
+    const id = ++dynTabIdCounter;
+    const tab = { id, url, title: title || new URL(url).hostname };
+    dynTabs.push(tab);
+
+    const container = document.getElementById('dynamic-tabs');
+    const el = document.createElement('button');
+    el.className = 'dyn-tab';
+    el.dataset.dynId = id;
+
+    const favicon = document.createElement('img');
+    favicon.className = 'dyn-tab-favicon';
+    favicon.src = `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=32`;
+    favicon.onerror = () => { favicon.style.display = 'none'; };
+
+    const titleSpan = document.createElement('span');
+    titleSpan.className = 'dyn-tab-title';
+    titleSpan.textContent = tab.title;
+
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'dyn-tab-close';
+    closeBtn.innerHTML = '×';
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      closeDynTab(id);
+    });
+
+    el.appendChild(favicon);
+    el.appendChild(titleSpan);
+    el.appendChild(closeBtn);
+    el.addEventListener('click', () => switchToDynTab(id));
+    container.appendChild(el);
+
+    const framesContainer = document.getElementById('dynamic-tab-frames');
+
+    if (!framesContainer.querySelector('.dtf-toolbar')) {
+      framesContainer.innerHTML = `
+        <div class="dtf-toolbar">
+          <button class="dtf-btn" id="dtf-back" title="뒤로"><i class="ri-arrow-left-line"></i></button>
+          <button class="dtf-btn" id="dtf-forward" title="앞으로"><i class="ri-arrow-right-line"></i></button>
+          <button class="dtf-btn" id="dtf-refresh" title="새로고침"><i class="ri-refresh-line"></i></button>
+          <div class="dtf-url-bar"></div>
+          <button class="dtf-btn" id="dtf-external" title="새 창에서 열기"><i class="ri-external-link-line"></i></button>
+        </div>
+        <div class="dtf-frame-wrap"></div>
+      `;
+      framesContainer.querySelector('#dtf-back').addEventListener('click', () => {
+        const iframe = framesContainer.querySelector('iframe.active');
+        if (iframe) try { iframe.contentWindow.history.back(); } catch {}
+      });
+      framesContainer.querySelector('#dtf-forward').addEventListener('click', () => {
+        const iframe = framesContainer.querySelector('iframe.active');
+        if (iframe) try { iframe.contentWindow.history.forward(); } catch {}
+      });
+      framesContainer.querySelector('#dtf-refresh').addEventListener('click', () => {
+        const iframe = framesContainer.querySelector('iframe.active');
+        if (iframe && iframe.src !== 'about:blank') iframe.src = iframe.src;
+      });
+      framesContainer.querySelector('#dtf-external').addEventListener('click', () => {
+        const t = dynTabs.find(t => t.id === activeDynTabId);
+        if (t) window.open(t.url, '_blank');
+      });
+    }
+
+    const frameWrap = framesContainer.querySelector('.dtf-frame-wrap');
+    const iframe = document.createElement('iframe');
+    iframe.dataset.dynId = id;
+    iframe.sandbox = 'allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox';
+    iframe.src = url;
+    frameWrap.appendChild(iframe);
+
+    switchToDynTab(id);
+    return tab;
+  }
+
+  function closeDynTab(id) {
+    const idx = dynTabs.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    dynTabs.splice(idx, 1);
+
+    const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
+    if (tabEl) tabEl.remove();
+
+    const iframe = document.querySelector(`#dynamic-tab-frames iframe[data-dyn-id="${id}"]`);
+    if (iframe) { iframe.src = 'about:blank'; iframe.remove(); }
+
+    if (activeDynTabId === id) {
+      if (dynTabs.length > 0) {
+        const nearest = dynTabs[Math.min(idx, dynTabs.length - 1)];
+        switchToDynTab(nearest.id);
+      } else {
+        switchTab('bookmarks');
+      }
+    }
   }
 
   // ═══════ Screens ═══════
@@ -543,7 +677,7 @@
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  // ═══════ Browser View ═══════
+  // ═══════ Browser View (Dynamic Tabs) ═══════
 
   async function openInBrowser(bm) {
     const mode = bm.open_mode || 'auto';
@@ -567,38 +701,7 @@
       }
     }
 
-    showBrowserView(url);
-  }
-
-  function showBrowserView(url) {
-    const browserView = document.getElementById('browser-view');
-    const iframe = document.getElementById('browser-iframe');
-    const loading = document.getElementById('browser-loading');
-    const urlBar = document.getElementById('browser-url');
-
-    browserCurrentUrl = url;
-    urlBar.textContent = url;
-    loading.classList.remove('hidden');
-    browserView.classList.remove('hidden');
-
-    iframe.src = 'about:blank';
-
-    const onLoad = () => {
-      loading.classList.add('hidden');
-      iframe.removeEventListener('load', onLoad);
-    };
-    iframe.addEventListener('load', onLoad);
-    iframe.src = url;
-  }
-
-  function closeBrowser() {
-    const browserView = document.getElementById('browser-view');
-    const iframe = document.getElementById('browser-iframe');
-    const loading = document.getElementById('browser-loading');
-    iframe.src = 'about:blank';
-    loading.classList.add('hidden');
-    browserView.classList.add('hidden');
-    browserCurrentUrl = '';
+    createDynTab(url, bm.title);
   }
 
   function handleUnlock() {
@@ -655,7 +758,7 @@
 
   document.addEventListener('DOMContentLoaded', () => {
     // Tab navigation
-    document.querySelectorAll('.main-tab').forEach(tab => {
+    document.querySelectorAll('.main-tab[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => switchTab(tab.dataset.tab));
     });
 
@@ -708,25 +811,10 @@
       btn.addEventListener('click', () => { if (btn.dataset.modal) UI.closeModal(btn.dataset.modal); });
     });
 
-    // Browser View
-    document.getElementById('browser-close').addEventListener('click', closeBrowser);
-    document.getElementById('browser-newtab').addEventListener('click', () => {
-      if (browserCurrentUrl) window.open(browserCurrentUrl, '_blank');
-    });
-    document.getElementById('browser-refresh').addEventListener('click', () => {
-      const iframe = document.getElementById('browser-iframe');
-      if (iframe.src && iframe.src !== 'about:blank') {
-        const loading = document.getElementById('browser-loading');
-        loading.classList.remove('hidden');
-        iframe.src = iframe.src;
-        iframe.addEventListener('load', () => loading.classList.add('hidden'), { once: true });
-      }
-    });
-    document.getElementById('browser-back').addEventListener('click', () => {
-      try { document.getElementById('browser-iframe').contentWindow.history.back(); } catch {}
-    });
-    document.getElementById('browser-forward').addEventListener('click', () => {
-      try { document.getElementById('browser-iframe').contentWindow.history.forward(); } catch {}
+    // Dynamic Tab: + button
+    document.getElementById('btn-add-tab').addEventListener('click', () => {
+      const url = prompt('URL을 입력하세요:', 'https://');
+      if (url && url !== 'https://') createDynTab(url);
     });
 
     // Search

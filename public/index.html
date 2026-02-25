@@ -85,6 +85,8 @@
       <button class="main-tab active" data-tab="bookmarks"><i class="ri-bookmark-line"></i><span>북마크</span></button>
       <button class="main-tab" data-tab="calendar"><i class="ri-calendar-line"></i><span>캘린더</span></button>
       <button class="main-tab" data-tab="memos"><i class="ri-sticky-note-line"></i><span>메모</span></button>
+      <div id="dynamic-tabs"></div>
+      <button class="main-tab tab-add-btn" id="btn-add-tab" title="새 탭"><i class="ri-add-line"></i></button>
     </nav>
 
     <!-- Tab: Bookmarks -->
@@ -141,25 +143,9 @@
         <button class="btn btn-primary" id="btn-memo-empty-add"><i class="ri-add-line"></i> 첫 번째 메모 작성</button>
       </div>
     </main>
-  </div>
 
-  <!-- ══════ Browser View ══════ -->
-  <div id="browser-view" class="browser-view hidden">
-    <div class="browser-toolbar">
-      <button class="browser-btn" id="browser-back" title="뒤로"><i class="ri-arrow-left-line"></i></button>
-      <button class="browser-btn" id="browser-forward" title="앞으로"><i class="ri-arrow-right-line"></i></button>
-      <button class="browser-btn" id="browser-refresh" title="새로고침"><i class="ri-refresh-line"></i></button>
-      <div class="browser-url-bar" id="browser-url"></div>
-      <button class="browser-btn" id="browser-newtab" title="새 탭에서 열기"><i class="ri-external-link-line"></i></button>
-      <button class="browser-btn browser-btn-close" id="browser-close" title="닫기"><i class="ri-close-line"></i></button>
-    </div>
-    <div class="browser-iframe-wrap">
-      <iframe id="browser-iframe" sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
-      <div id="browser-loading" class="browser-loading hidden">
-        <div class="browser-spinner"></div>
-        <span>로딩 중...</span>
-      </div>
-    </div>
+    <!-- ══════ Dynamic Tab Frames ══════ -->
+    <div id="dynamic-tab-frames"></div>
   </div>
 
   <!-- ══════ Settings Panel ══════ -->
