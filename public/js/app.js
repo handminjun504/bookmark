@@ -192,6 +192,9 @@
       frame.dataset.dynId = id;
       frame.setAttribute('allowpopups', '');
       frame.setAttribute('partition', 'persist:main');
+      if (window.electronAPI?.webviewPreloadPath) {
+        frame.setAttribute('preload', window.electronAPI.webviewPreloadPath);
+      }
       frame.src = url;
       frame.addEventListener('page-title-updated', (e) => {
         tab.title = e.title;
@@ -209,6 +212,18 @@
         if (activeDynTabId === id) {
           const bar = framesContainer.querySelector('.dtf-url-bar');
           if (bar) bar.textContent = e.url;
+        }
+        autoFillWebview(frame, e.url);
+      });
+      frame.addEventListener('dom-ready', () => {
+        autoFillWebview(frame, url);
+      });
+      frame.addEventListener('ipc-message', (e) => {
+        if (e.channel === 'pw-submit') {
+          const data = e.args[0];
+          showPwSaveBar(data, frame);
+        } else if (e.channel === 'pw-detected') {
+          autoFillWebview(frame, frame.getURL?.() || url);
         }
       });
     } else {
@@ -659,6 +674,13 @@
     document.getElementById('setting-lock-timeout').value = String(user.lock_timeout || 300);
     document.getElementById('setting-pin').value = user.pin_code || '';
     renderCategoryList();
+    const pwSection = document.getElementById('pw-manage-section');
+    if (isElectron && window.electronAPI) {
+      if (pwSection) pwSection.style.display = '';
+      renderSavedPasswords();
+    } else {
+      if (pwSection) pwSection.style.display = 'none';
+    }
     UI.showPanel('settings-panel');
   }
 
@@ -770,6 +792,82 @@
       UI.closeModal('pw-modal');
       document.getElementById('pw-form').reset();
     } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  // ═══════ Password Manager (Electron only) ═══════
+
+  let pendingPwData = null;
+  let pendingPwFrame = null;
+
+  async function autoFillWebview(frame, urlStr) {
+    if (!window.electronAPI) return;
+    try {
+      const hostname = new URL(urlStr).hostname;
+      const creds = await window.electronAPI.getPasswords(hostname);
+      if (creds?.length && frame.send) {
+        frame.send('pw-fill', creds);
+      }
+    } catch {}
+  }
+
+  function showPwSaveBar(data, frame) {
+    if (!window.electronAPI) return;
+    pendingPwData = data;
+    pendingPwFrame = frame;
+    const bar = document.getElementById('pw-save-bar');
+    if (!bar) return;
+    const domainEl = document.getElementById('pw-save-domain');
+    if (domainEl) domainEl.textContent = `(${data.domain})`;
+    const userEl = document.getElementById('pw-save-user');
+    if (userEl) userEl.textContent = data.username || '';
+    bar.classList.remove('hidden');
+  }
+
+  function hidePwSaveBar() {
+    const bar = document.getElementById('pw-save-bar');
+    if (bar) bar.classList.add('hidden');
+    pendingPwData = null;
+    pendingPwFrame = null;
+  }
+
+  async function handlePwSave() {
+    if (!pendingPwData || !window.electronAPI) return;
+    await window.electronAPI.savePassword(pendingPwData);
+    UI.showToast('비밀번호가 저장되었습니다', 'success');
+    hidePwSaveBar();
+  }
+
+  async function renderSavedPasswords() {
+    const container = document.getElementById('saved-pw-list');
+    if (!container || !window.electronAPI) return;
+    const all = await window.electronAPI.getAllPasswords();
+    const domains = Object.keys(all);
+    if (!domains.length) {
+      container.innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:8px 0;">저장된 비밀번호가 없습니다</p>';
+      return;
+    }
+    container.innerHTML = domains.map(domain => {
+      return all[domain].map(c => `
+        <div class="saved-pw-item" data-domain="${domain}" data-user="${escapeHtml(c.username)}">
+          <img class="saved-pw-favicon" src="https://www.google.com/s2/favicons?domain=${domain}&sz=32" onerror="this.style.display='none'" />
+          <div class="saved-pw-info">
+            <div class="saved-pw-domain">${escapeHtml(domain)}</div>
+            <div class="saved-pw-user">${escapeHtml(c.username)}</div>
+          </div>
+          <button class="icon-btn saved-pw-del" title="삭제"><i class="ri-delete-bin-line"></i></button>
+        </div>`).join('');
+    }).join('');
+    container.querySelectorAll('.saved-pw-del').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const item = btn.closest('.saved-pw-item');
+        await window.electronAPI.deletePassword({
+          domain: item.dataset.domain,
+          username: item.dataset.user,
+        });
+        UI.showToast('삭제되었습니다', 'success');
+        renderSavedPasswords();
+      });
+    });
   }
 
   // ═══════ Browser View (Dynamic Tabs) ═══════
@@ -922,6 +1020,12 @@
     if (isElectron) {
       window.__electronOpenTab = (url) => createDynTab(url);
     }
+
+    // Password save bar
+    const pwSaveYes = document.getElementById('pw-save-yes');
+    const pwSaveNo = document.getElementById('pw-save-no');
+    if (pwSaveYes) pwSaveYes.addEventListener('click', handlePwSave);
+    if (pwSaveNo) pwSaveNo.addEventListener('click', hidePwSaveBar);
 
     // Responsive zoom + Ctrl+Wheel manual zoom
     const BASE_WIDTH = 1280;

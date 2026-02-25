@@ -178,6 +178,10 @@
         </div>
         <button class="btn btn-primary btn-sm" id="btn-save-lock">저장</button>
       </form>
+      <div class="setting-group" id="pw-manage-section" style="display:none">
+        <h3><i class="ri-key-2-line" style="color:var(--primary)"></i> 저장된 비밀번호</h3>
+        <div id="saved-pw-list"></div>
+      </div>
       <div class="setting-group">
         <h3>카테고리 관리</h3>
         <div id="category-list" class="category-manage-list"></div>
@@ -407,6 +411,17 @@
       <p id="confirm-message" class="confirm-msg"></p>
       <div class="modal-footer"><button class="btn btn-ghost" id="confirm-cancel">취소</button><button class="btn btn-danger" id="confirm-ok">확인</button></div>
     </div>
+  </div>
+
+  <!-- ══════ Password Save Bar ══════ -->
+  <div id="pw-save-bar" class="pw-save-bar hidden">
+    <i class="ri-key-2-line"></i>
+    <span>비밀번호를 저장하시겠습니까?</span>
+    <span id="pw-save-domain" class="pw-save-domain"></span>
+    <span id="pw-save-user" class="pw-save-user"></span>
+    <div style="flex:1"></div>
+    <button class="btn btn-primary btn-sm" id="pw-save-yes">저장</button>
+    <button class="btn btn-ghost btn-sm" id="pw-save-no">안 함</button>
   </div>
 
   <div id="toast-container" class="toast-container"></div>
