@@ -308,7 +308,7 @@ const Calendar = (() => {
       if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
         const timer = setTimeout(() => {
           const remindText = ev.remind_minutes === 0 ? '지금' : `${ev.remind_minutes}분 후`;
-          new Notification('통합접속 - 일정 알림', {
+          new Notification('LinkFlow - 일정 알림', {
             body: `${ev.title} (${remindText} 시작)`,
             icon: '/icons/icon-192.png',
             tag: ev.id,
