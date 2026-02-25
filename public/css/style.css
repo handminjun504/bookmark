@@ -578,6 +578,7 @@ body {
 .bookmark-icon.type-server { background: #E8F8F5; color: #1ABC9C; }
 .bookmark-icon.type-apps_script { background: #FEF9E7; color: #F39C12; }
 .bookmark-icon.type-api { background: #F4ECF7; color: #8E44AD; }
+.bookmark-icon.type-dev_project { background: #E8EAF6; color: #3F51B5; }
 .bookmark-icon.type-other { background: #FBEEE6; color: #E67E22; }
 
 .bookmark-icon img {

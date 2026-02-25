@@ -71,10 +71,11 @@ const UI = (() => {
     server: { label: '서버', icon: 'ri-server-line' },
     apps_script: { label: '구글 앱스', icon: 'ri-google-line' },
     api: { label: 'API', icon: 'ri-flashlight-line' },
+    dev_project: { label: '개발/자동화 프로젝트', icon: 'ri-code-box-line' },
     other: { label: '기타', icon: 'ri-bookmark-line' },
   };
 
-  const SERVICE_TYPE_ORDER = ['web', 'google_sheet', 'server', 'apps_script', 'api', 'other'];
+  const SERVICE_TYPE_ORDER = ['web', 'google_sheet', 'server', 'apps_script', 'api', 'dev_project', 'other'];
 
   function getTypeInfo(type) {
     return SERVICE_TYPES[type] || SERVICE_TYPES.other;
