@@ -114,6 +114,23 @@
     titleSpan.className = 'dyn-tab-title';
     titleSpan.textContent = tab.title;
 
+    const detachBtn = document.createElement('span');
+    detachBtn.className = 'dyn-tab-detach';
+    detachBtn.innerHTML = '<i class="ri-external-link-line"></i>';
+    detachBtn.title = '새 창으로 분리';
+    detachBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const sel = isElectron ? 'webview' : 'iframe';
+      const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
+      const currentUrl = frame ? (frame.src || frame.getURL?.() || url) : url;
+      if (isElectron) {
+        window.open(currentUrl + '#__detach', '_blank');
+      } else {
+        window.open(currentUrl, '_blank');
+      }
+      closeDynTab(id);
+    });
+
     const closeBtn = document.createElement('span');
     closeBtn.className = 'dyn-tab-close';
     closeBtn.innerHTML = '×';
@@ -124,6 +141,7 @@
 
     el.appendChild(favicon);
     el.appendChild(titleSpan);
+    el.appendChild(detachBtn);
     el.appendChild(closeBtn);
     el.addEventListener('click', () => switchToDynTab(id));
     container.appendChild(el);
