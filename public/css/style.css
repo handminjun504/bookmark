@@ -505,6 +505,27 @@ body {
   padding: 20px 24px;
 }
 
+.type-section-title {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-light);
+  padding: 12px 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2px;
+}
+.type-section-title:first-child {
+  padding-top: 0;
+}
+.type-section-title i {
+  font-size: 15px;
+}
+.type-section-title.shared {
+  color: var(--primary);
+}
 .shared-section-title {
   grid-column: 1 / -1;
   font-size: 14px;

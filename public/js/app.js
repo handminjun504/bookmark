@@ -331,10 +331,28 @@
 
     empty.classList.add('hidden');
 
-    let html = filtered.map(b => cardHTML(b, false)).join('');
+    let html = '';
+    const typeOrder = UI.SERVICE_TYPE_ORDER;
+    const grouped = {};
+    filtered.forEach(b => {
+      const t = b.service_type || 'web';
+      if (!grouped[t]) grouped[t] = [];
+      grouped[t].push(b);
+    });
+
+    const usedTypes = typeOrder.filter(t => grouped[t]?.length);
+    const showHeaders = usedTypes.length > 1;
+
+    usedTypes.forEach(t => {
+      const info = UI.getTypeInfo(t);
+      if (showHeaders) {
+        html += `<div class="type-section-title"><i class="${info.icon}"></i> ${info.label}</div>`;
+      }
+      html += grouped[t].map(b => cardHTML(b, false)).join('');
+    });
 
     if (sharedFiltered.length > 0 && activeCategory === 'all') {
-      html += `<div class="shared-section-title">공용 북마크</div>`;
+      html += `<div class="type-section-title shared"><i class="ri-share-line"></i> 공용 북마크</div>`;
       html += sharedFiltered.map(b => cardHTML(b, true)).join('');
     }
 

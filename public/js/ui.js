@@ -67,16 +67,18 @@ const UI = (() => {
 
   const SERVICE_TYPES = {
     web: { label: '웹사이트', icon: 'ri-global-line', useFavicon: true },
-    google_sheet: { label: '구글시트', icon: 'ri-file-excel-2-line', useFavicon: true },
+    google_sheet: { label: '구글시트', icon: 'ri-file-excel-2-line' },
     server: { label: '서버', icon: 'ri-server-line' },
     apps_script: { label: '구글 앱스', icon: 'ri-google-line' },
     api: { label: 'API', icon: 'ri-flashlight-line' },
     other: { label: '기타', icon: 'ri-bookmark-line' },
   };
 
+  const SERVICE_TYPE_ORDER = ['web', 'google_sheet', 'server', 'apps_script', 'api', 'other'];
+
   function getTypeInfo(type) {
     return SERVICE_TYPES[type] || SERVICE_TYPES.other;
   }
 
-  return { showToast, openModal, closeModal, confirm, showPanel, hidePanel, hideAllPanels, setLoading, getTypeInfo };
+  return { showToast, openModal, closeModal, confirm, showPanel, hidePanel, hideAllPanels, setLoading, getTypeInfo, SERVICE_TYPES, SERVICE_TYPE_ORDER };
 })();
