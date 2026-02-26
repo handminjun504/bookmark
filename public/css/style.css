@@ -1724,6 +1724,91 @@ body {
   border-left: 2px solid var(--primary) !important;
 }
 
+/* Tab loading spinner */
+.dyn-tab-loading {
+  display: none;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dyn-tab-loading.active {
+  display: inline-block;
+  animation: tab-spin 0.7s linear infinite;
+}
+@keyframes tab-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Tab Context Menu */
+.tab-context-menu {
+  position: fixed;
+  z-index: 99999;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  min-width: 180px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.tab-context-menu.hidden { display: none; }
+.tcm-item {
+  padding: 7px 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  transition: background 0.1s;
+}
+.tcm-item:hover { background: var(--primary-bg); }
+.tcm-item i { font-size: 15px; color: var(--text-light); width: 18px; text-align: center; }
+.tcm-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Find Bar */
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.find-bar.hidden { display: none; }
+.find-bar input {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  padding: 4px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+  max-width: 300px;
+}
+.find-bar input:focus { border-color: var(--primary); }
+.find-bar-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 40px;
+  text-align: center;
+}
+.find-bar-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--text-light);
+  font-size: 16px;
+  line-height: 1;
+}
+.find-bar-btn:hover { background: var(--primary-bg); color: var(--text); }
+
 .dtf-frame-wrap {
   flex: 1;
   position: relative;

@@ -159,11 +159,22 @@
       closeDynTab(id);
     });
 
+    const loadingDot = document.createElement('span');
+    loadingDot.className = 'dyn-tab-loading';
+
+    el.appendChild(loadingDot);
     el.appendChild(favicon);
     el.appendChild(titleSpan);
     el.appendChild(detachBtn);
     el.appendChild(closeBtn);
     el.addEventListener('click', () => switchToDynTab(id));
+    el.addEventListener('auxclick', (e) => {
+      if (e.button === 1) { e.preventDefault(); closeDynTab(id); }
+    });
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      showTabContextMenu(id, e.clientX, e.clientY);
+    });
     el.draggable = true;
     let dynDragReordered = false;
     el.addEventListener('dragstart', (e) => {
@@ -354,6 +365,20 @@
       frame.addEventListener('dom-ready', () => {
         autoFillWebview(frame, url);
       });
+      frame.addEventListener('did-start-loading', () => {
+        const dot = document.querySelector(`.dyn-tab[data-dyn-id="${id}"] .dyn-tab-loading`);
+        if (dot) dot.classList.add('active');
+      });
+      frame.addEventListener('did-stop-loading', () => {
+        const dot = document.querySelector(`.dyn-tab[data-dyn-id="${id}"] .dyn-tab-loading`);
+        if (dot) dot.classList.remove('active');
+      });
+      frame.addEventListener('found-in-page', (e) => {
+        const countEl = document.getElementById('find-bar-count');
+        if (countEl && e.result) {
+          countEl.textContent = `${e.result.activeMatchOrdinal}/${e.result.matches}`;
+        }
+      });
       frame.addEventListener('ipc-message', (e) => {
         if (e.channel === 'pw-submit') {
           const data = e.args[0];
@@ -427,6 +452,9 @@
   function closeDynTab(id) {
     const idx = dynTabs.findIndex(t => t.id === id);
     if (idx === -1) return;
+    const closed = dynTabs[idx];
+    if (closed) closedTabHistory.push({ url: closed.url, title: closed.title });
+    if (closedTabHistory.length > 20) closedTabHistory.shift();
     dynTabs.splice(idx, 1);
 
     const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
@@ -1218,6 +1246,160 @@
   // ═══════ Browser View (Dynamic Tabs) ═══════
 
   const isElectron = /electron/i.test(navigator.userAgent);
+  const closedTabHistory = [];
+
+  // ── Chrome-like Global Shortcuts ──
+  window.__newTab = () => createDynTab('https://www.google.com', 'Google');
+  window.__closeActiveTab = () => { if (activeDynTabId != null) closeDynTab(activeDynTabId); };
+  window.__reopenClosedTab = () => {
+    const last = closedTabHistory.pop();
+    if (last) createDynTab(last.url, last.title);
+  };
+  window.__nextTab = () => {
+    if (!dynTabs.length) return;
+    if (activeDynTabId == null) { switchToDynTab(dynTabs[0].id); return; }
+    const idx = dynTabs.findIndex(t => t.id === activeDynTabId);
+    const next = dynTabs[(idx + 1) % dynTabs.length];
+    if (next) switchToDynTab(next.id);
+  };
+  window.__prevTab = () => {
+    if (!dynTabs.length) return;
+    if (activeDynTabId == null) { switchToDynTab(dynTabs[dynTabs.length - 1].id); return; }
+    const idx = dynTabs.findIndex(t => t.id === activeDynTabId);
+    const prev = dynTabs[(idx - 1 + dynTabs.length) % dynTabs.length];
+    if (prev) switchToDynTab(prev.id);
+  };
+  window.__focusUrlBar = () => {
+    const input = document.getElementById('dtf-url-input');
+    if (input) { input.focus(); input.select(); }
+  };
+  window.__switchToTabIndex = (i) => {
+    if (i >= dynTabs.length) {
+      if (dynTabs.length) switchToDynTab(dynTabs[dynTabs.length - 1].id);
+      return;
+    }
+    switchToDynTab(dynTabs[i].id);
+  };
+  window.__findInPage = () => {
+    const frame = getActiveFrame();
+    if (!frame || frame.tagName !== 'WEBVIEW') return;
+    let bar = document.getElementById('find-bar');
+    if (!bar) {
+      const framesContainer = document.getElementById('dynamic-tab-frames');
+      bar = document.createElement('div');
+      bar.id = 'find-bar';
+      bar.className = 'find-bar';
+      bar.innerHTML = `
+        <input type="text" id="find-bar-input" placeholder="페이지에서 찾기..." />
+        <span id="find-bar-count" class="find-bar-count"></span>
+        <button class="find-bar-btn" id="find-bar-prev" title="이전"><i class="ri-arrow-up-s-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-next" title="다음"><i class="ri-arrow-down-s-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-close" title="닫기 (Esc)"><i class="ri-close-line"></i></button>
+      `;
+      const toolbar = framesContainer.querySelector('.dtf-toolbar');
+      if (toolbar) toolbar.after(bar);
+      else framesContainer.prepend(bar);
+
+      document.getElementById('find-bar-input').addEventListener('input', (ev) => {
+        const f = getActiveFrame();
+        if (!f || f.tagName !== 'WEBVIEW') return;
+        const q = ev.target.value;
+        if (q) f.findInPage(q);
+        else f.stopFindInPage('clearSelection');
+      });
+      document.getElementById('find-bar-input').addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') {
+          const f = getActiveFrame();
+          if (f && f.tagName === 'WEBVIEW') f.findInPage(ev.target.value, { forward: !ev.shiftKey });
+        } else if (ev.key === 'Escape') {
+          window.__closeFindBar();
+        }
+      });
+      document.getElementById('find-bar-next').addEventListener('click', () => {
+        const f = getActiveFrame();
+        const q = document.getElementById('find-bar-input').value;
+        if (f && q) f.findInPage(q, { forward: true, findNext: true });
+      });
+      document.getElementById('find-bar-prev').addEventListener('click', () => {
+        const f = getActiveFrame();
+        const q = document.getElementById('find-bar-input').value;
+        if (f && q) f.findInPage(q, { forward: false, findNext: true });
+      });
+      document.getElementById('find-bar-close').addEventListener('click', () => window.__closeFindBar());
+    }
+    bar.classList.remove('hidden');
+    const input = document.getElementById('find-bar-input');
+    input.focus();
+    input.select();
+  };
+  window.__closeFindBar = () => {
+    const bar = document.getElementById('find-bar');
+    if (bar) bar.classList.add('hidden');
+    const frame = getActiveFrame();
+    if (frame && frame.tagName === 'WEBVIEW') frame.stopFindInPage('clearSelection');
+    document.getElementById('find-bar-count')?.replaceChildren();
+  };
+
+  function showTabContextMenu(tabId, x, y) {
+    let menu = document.getElementById('tab-context-menu');
+    if (!menu) {
+      menu = document.createElement('div');
+      menu.id = 'tab-context-menu';
+      menu.className = 'tab-context-menu';
+      document.body.appendChild(menu);
+    }
+    const tab = dynTabs.find(t => t.id === tabId);
+    if (!tab) return;
+    menu.innerHTML = `
+      <div class="tcm-item" data-action="reload"><i class="ri-refresh-line"></i> 새로고침</div>
+      <div class="tcm-item" data-action="duplicate"><i class="ri-file-copy-line"></i> 탭 복제</div>
+      <div class="tcm-item" data-action="pin"><i class="ri-pushpin-line"></i> 탭 고정</div>
+      <div class="tcm-divider"></div>
+      <div class="tcm-item" data-action="close"><i class="ri-close-line"></i> 탭 닫기</div>
+      <div class="tcm-item" data-action="close-others"><i class="ri-close-circle-line"></i> 다른 탭 모두 닫기</div>
+      <div class="tcm-item" data-action="close-right"><i class="ri-skip-right-line"></i> 오른쪽 탭 모두 닫기</div>
+    `;
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.classList.remove('hidden');
+
+    const handler = (e) => {
+      const item = e.target.closest('.tcm-item');
+      if (item) {
+        const action = item.dataset.action;
+        if (action === 'reload') {
+          const sel = isElectron ? 'webview' : 'iframe';
+          const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${tabId}"]`);
+          if (frame?.reload) frame.reload();
+          else if (frame) frame.src = frame.src;
+        } else if (action === 'duplicate') {
+          createDynTab(tab.url, tab.title);
+        } else if (action === 'close') {
+          closeDynTab(tabId);
+        } else if (action === 'close-others') {
+          dynTabs.filter(t => t.id !== tabId).forEach(t => closeDynTab(t.id));
+        } else if (action === 'close-right') {
+          const idx = dynTabs.findIndex(t => t.id === tabId);
+          dynTabs.slice(idx + 1).forEach(t => closeDynTab(t.id));
+        }
+      }
+      menu.classList.add('hidden');
+      document.removeEventListener('click', handler, true);
+      document.removeEventListener('contextmenu', dismissHandler, true);
+    };
+    const dismissHandler = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.classList.add('hidden');
+        document.removeEventListener('click', handler, true);
+        document.removeEventListener('contextmenu', dismissHandler, true);
+        e.preventDefault();
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener('click', handler, true);
+      document.addEventListener('contextmenu', dismissHandler, true);
+    }, 0);
+  }
 
   async function openInBrowser(bm) {
     const url = bm.url;
