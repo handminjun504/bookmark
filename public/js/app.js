@@ -165,14 +165,36 @@
     el.appendChild(closeBtn);
     el.addEventListener('click', () => switchToDynTab(id));
     el.draggable = true;
+    let dynDragReordered = false;
     el.addEventListener('dragstart', (e) => {
+      dynDragReordered = false;
       e.dataTransfer.setData('text/plain', String(id));
       el.classList.add('dyn-tab-dragging');
       e.dataTransfer.effectAllowed = 'move';
     });
-    el.addEventListener('dragend', () => {
+    el.addEventListener('dragend', async (e) => {
       el.classList.remove('dyn-tab-dragging');
       container.querySelectorAll('.dyn-tab-drop-target').forEach(t => t.classList.remove('dyn-tab-drop-target'));
+      if (dynDragReordered) return;
+      if (e.clientX === 0 && e.clientY === 0) return;
+      const tabBar = document.getElementById('main-tab-bar');
+      if (!tabBar) return;
+      const rect = tabBar.getBoundingClientRect();
+      const outside = e.clientY > rect.bottom + 40 || e.clientY < rect.top - 40;
+      if (!outside) return;
+      const sel = isElectron ? 'webview' : 'iframe';
+      const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
+      const currentUrl = frame ? (frame.src || frame.getURL?.() || url) : url;
+      if (isElectron) {
+        if (window.electronAPI?.flushCookies) await window.electronAPI.flushCookies();
+        const authPayload = btoa(unescape(encodeURIComponent(
+          JSON.stringify({ token: Auth.getToken(), user: Auth.getUser() })
+        )));
+        window.open(currentUrl + '#__detach&__auth=' + authPayload, '_blank');
+      } else {
+        window.open(currentUrl, '_blank');
+      }
+      removeDynTabUI(id);
     });
     el.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -186,6 +208,7 @@
       const srcId = parseInt(e.dataTransfer.getData('text/plain'), 10);
       const destId = id;
       if (srcId === destId) return;
+      dynDragReordered = true;
       const srcIdx = dynTabs.findIndex(t => t.id === srcId);
       const destIdx = dynTabs.findIndex(t => t.id === destId);
       if (srcIdx < 0 || destIdx < 0) return;
