@@ -359,6 +359,10 @@
     Memos.init();
     loadData();
 
+    if (isElectron && window.electronAPI?.listExtensions) {
+      renderExtensionToolbar();
+    }
+
     const hashMatch = location.hash.match(/__open_tab=([^&]+)/);
     if (hashMatch) {
       const tabUrl = decodeURIComponent(hashMatch[1]);
@@ -752,11 +756,15 @@
     document.getElementById('setting-pin').value = user.pin_code || '';
     renderCategoryList();
     const pwSection = document.getElementById('pw-manage-section');
+    const extSection = document.getElementById('ext-manage-section');
     if (isElectron && window.electronAPI) {
       if (pwSection) pwSection.style.display = '';
+      if (extSection) extSection.style.display = '';
       renderSavedPasswords();
+      renderExtensionList();
     } else {
       if (pwSection) pwSection.style.display = 'none';
+      if (extSection) extSection.style.display = 'none';
     }
     UI.showPanel('settings-panel');
   }
@@ -949,6 +957,75 @@
     });
   }
 
+  // ═══════ Extension Management ═══════
+
+  async function renderExtensionList() {
+    const container = document.getElementById('ext-list');
+    if (!container || !window.electronAPI?.listExtensions) return;
+    const exts = await window.electronAPI.listExtensions();
+    if (!exts.length) {
+      container.innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:4px 0;">설치된 확장 프로그램이 없습니다</p>';
+    } else {
+      container.innerHTML = exts.map(ext => `
+        <div class="ext-item" data-ext-id="${ext.id}">
+          <img class="ext-icon" src="${escapeHtml(ext.icon)}" onerror="this.style.display='none'" />
+          <div class="ext-info">
+            <div class="ext-name">${escapeHtml(ext.name)}</div>
+            <div class="ext-desc">${escapeHtml(ext.version)}${ext.description ? ' — ' + escapeHtml(ext.description).substring(0, 60) : ''}</div>
+          </div>
+          <button class="icon-btn ext-remove-btn" title="제거"><i class="ri-delete-bin-line"></i></button>
+        </div>
+      `).join('');
+      container.querySelectorAll('.ext-remove-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const item = btn.closest('.ext-item');
+          const result = await window.electronAPI.removeExtension(item.dataset.extId);
+          if (result.ok) {
+            UI.showToast('확장 프로그램이 제거되었습니다', 'success');
+            renderExtensionList();
+            renderExtensionToolbar();
+          } else {
+            UI.showToast(result.error || '제거 실패', 'error');
+          }
+        });
+      });
+    }
+  }
+
+  async function renderExtensionToolbar() {
+    const toolbar = document.getElementById('ext-toolbar');
+    if (!toolbar || !window.electronAPI?.listExtensions) return;
+    const exts = await window.electronAPI.listExtensions();
+    if (!exts.length) {
+      toolbar.style.display = 'none';
+      toolbar.innerHTML = '';
+      return;
+    }
+    toolbar.style.display = 'flex';
+    toolbar.innerHTML = exts.map(ext => `
+      <button class="ext-toolbar-btn" data-ext-id="${ext.id}" title="${escapeHtml(ext.name)}">
+        <img src="${escapeHtml(ext.icon)}" onerror="this.outerHTML='<i class=\\'ri-puzzle-line\\'></i>'" />
+      </button>
+    `).join('');
+    toolbar.querySelectorAll('.ext-toolbar-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        window.electronAPI.openExtensionPopup(btn.dataset.extId);
+      });
+    });
+  }
+
+  async function handleLoadExtension() {
+    if (!window.electronAPI?.loadExtension) return;
+    const result = await window.electronAPI.loadExtension();
+    if (result.ok) {
+      UI.showToast(`"${result.extension.name}" 확장 프로그램이 추가되었습니다`, 'success');
+      renderExtensionList();
+      renderExtensionToolbar();
+    } else if (result.error) {
+      UI.showToast(result.error, 'error');
+    }
+  }
+
   // ═══════ Browser View (Dynamic Tabs) ═══════
 
   const isElectron = /electron/i.test(navigator.userAgent);
@@ -1105,6 +1182,10 @@
     const pwSaveNo = document.getElementById('pw-save-no');
     if (pwSaveYes) pwSaveYes.addEventListener('click', handlePwSave);
     if (pwSaveNo) pwSaveNo.addEventListener('click', hidePwSaveBar);
+
+    // Extension: load button
+    const extLoadBtn = document.getElementById('btn-load-extension');
+    if (extLoadBtn) extLoadBtn.addEventListener('click', handleLoadExtension);
 
     // Responsive zoom + Ctrl+Wheel manual zoom
     const BASE_WIDTH = 1280;
