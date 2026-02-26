@@ -194,6 +194,11 @@
         <div id="category-list" class="category-manage-list"></div>
         <button class="btn btn-outline btn-sm" id="btn-add-category"><i class="ri-add-line"></i> 카테고리 추가</button>
       </div>
+      <div class="setting-group">
+        <h3><i class="ri-history-line" style="color:var(--primary)"></i> 앱 정보</h3>
+        <p id="app-version-display" style="font-size:12px;color:var(--text-muted);margin-bottom:8px"></p>
+        <button class="btn btn-outline btn-sm" id="btn-update-history"><i class="ri-history-line"></i> 업데이트 이력</button>
+      </div>
     </div>
   </div>
 
@@ -421,6 +426,22 @@
       <div class="modal-header"><h3 id="confirm-title">확인</h3></div>
       <p id="confirm-message" class="confirm-msg"></p>
       <div class="modal-footer"><button class="btn btn-ghost" id="confirm-cancel">취소</button><button class="btn btn-danger" id="confirm-ok">확인</button></div>
+    </div>
+  </div>
+
+  <!-- ══════ Update History Modal ══════ -->
+  <div id="update-history-modal" class="modal hidden">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h3><i class="ri-history-line"></i> 업데이트 이력</h3>
+        <button class="icon-btn modal-close" data-modal="update-history-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <div id="update-history-body" class="update-history-body">
+        <div class="update-loading"><i class="ri-loader-4-line ri-spin"></i> 이력을 불러오는 중...</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" data-modal="update-history-modal">확인</button>
+      </div>
     </div>
   </div>
 

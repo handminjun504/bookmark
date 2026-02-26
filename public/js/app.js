@@ -860,6 +860,11 @@
     document.getElementById('setting-lock-timeout').value = String(user.lock_timeout || 300);
     document.getElementById('setting-pin').value = user.pin_code || '';
     renderCategoryList();
+    const versionEl = document.getElementById('app-version-display');
+    if (versionEl) {
+      const ver = window.electronAPI?.getAppVersion ? window.electronAPI.getAppVersion() : '';
+      versionEl.textContent = ver ? `LinkFlow v${ver}` : 'LinkFlow (웹 버전)';
+    }
     const pwSection = document.getElementById('pw-manage-section');
     const extSection = document.getElementById('ext-manage-section');
     if (isElectron && window.electronAPI) {
@@ -1131,6 +1136,62 @@
     }
   }
 
+  // ═══════ Update History ═══════
+
+  const GITHUB_RELEASES_URL = 'https://api.github.com/repos/handminjun504/linkflow/releases';
+
+  async function fetchReleases() {
+    try {
+      const res = await fetch(GITHUB_RELEASES_URL, {
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+      });
+      if (!res.ok) throw new Error('API error');
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  function formatReleaseBody(body) {
+    if (!body) return '';
+    return body
+      .replace(/\r\n/g, '\n')
+      .replace(/^### (.+)$/gm, '<strong>$1</strong>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>\n?)+/gs, '<ul>$&</ul>')
+      .replace(/\n{2,}/g, '<br/>');
+  }
+
+  async function showUpdateHistory() {
+    UI.openModal('update-history-modal');
+    const body = document.getElementById('update-history-body');
+    body.innerHTML = '<div class="update-loading"><i class="ri-loader-4-line ri-spin"></i> 이력을 불러오는 중...</div>';
+
+    const releases = await fetchReleases();
+    if (!releases || !releases.length) {
+      body.innerHTML = '<div class="update-release-empty"><i class="ri-history-line" style="font-size:32px;display:block;margin-bottom:8px"></i>업데이트 이력이 없습니다</div>';
+      return;
+    }
+
+    body.innerHTML = releases.map((r, i) => {
+      const date = new Date(r.published_at || r.created_at);
+      const dateStr = `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}`;
+      const badge = i === 0 ? '<span class="update-release-badge latest">최신</span>' : '';
+      const bodyHtml = r.body ? formatReleaseBody(r.body) : (r.name || '변경 사항 없음');
+      return `
+        <div class="update-release">
+          <div class="update-release-header">
+            <span class="update-release-version">${escapeHtml(r.tag_name || r.name)}</span>
+            ${badge}
+            <span class="update-release-date">${dateStr}</span>
+          </div>
+          <div class="update-release-body">${bodyHtml}</div>
+        </div>`;
+    }).join('');
+  }
+
+  window.__showUpdateHistory = showUpdateHistory;
+
   // ═══════ Browser View (Dynamic Tabs) ═══════
 
   const isElectron = /electron/i.test(navigator.userAgent);
@@ -1291,6 +1352,10 @@
     // Extension: load button
     const extLoadBtn = document.getElementById('btn-load-extension');
     if (extLoadBtn) extLoadBtn.addEventListener('click', handleLoadExtension);
+
+    // Update history button
+    const updateHistoryBtn = document.getElementById('btn-update-history');
+    if (updateHistoryBtn) updateHistoryBtn.addEventListener('click', showUpdateHistory);
 
     // Responsive zoom + Ctrl+Wheel manual zoom
     const BASE_WIDTH = 1280;
