@@ -232,6 +232,7 @@ async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
         "icon_url": req.icon_url,
         "is_shared": req.is_shared,
         "open_mode": req.open_mode,
+        "is_pinned": req.is_pinned,
     }
     result = db.table("bookmarks").insert(data).execute()
     return result.data[0]
@@ -274,6 +275,29 @@ async def delete_bookmark(bookmark_id: str, user=Depends(get_current_user)):
     if not result.data:
         raise HTTPException(status_code=404, detail="Bookmark not found")
     return {"message": "Deleted"}
+
+
+@app.patch("/api/bookmarks/{bookmark_id}/pin")
+async def toggle_pin_bookmark(bookmark_id: str, user=Depends(get_current_user)):
+    db = get_supabase()
+    existing = (
+        db.table("bookmarks")
+        .select("is_pinned")
+        .eq("id", bookmark_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    if not existing.data:
+        raise HTTPException(status_code=404, detail="Bookmark not found")
+    new_val = not existing.data[0].get("is_pinned", False)
+    result = (
+        db.table("bookmarks")
+        .update({"is_pinned": new_val})
+        .eq("id", bookmark_id)
+        .eq("user_id", user["sub"])
+        .execute()
+    )
+    return result.data[0]
 
 
 @app.patch("/api/bookmarks/reorder")

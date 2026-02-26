@@ -23,6 +23,7 @@ class BookmarkCreate(BaseModel):
     icon_url: Optional[str] = None
     is_shared: bool = False
     open_mode: str = "auto"
+    is_pinned: bool = False
 
 
 class BookmarkUpdate(BaseModel):
@@ -35,6 +36,7 @@ class BookmarkUpdate(BaseModel):
     icon_url: Optional[str] = None
     is_shared: Optional[bool] = None
     open_mode: Optional[str] = None
+    is_pinned: Optional[bool] = None
 
 
 class ReorderRequest(BaseModel):

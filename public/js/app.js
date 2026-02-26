@@ -94,8 +94,8 @@
 
     const tab = dynTabs.find(t => t.id === id);
     if (tab) {
-      const urlBar = framesContainer.querySelector('.dtf-url-bar');
-      if (urlBar) urlBar.textContent = tab.url;
+      const urlBar = framesContainer.querySelector('#dtf-url-input');
+      if (urlBar) urlBar.value = tab.url;
     }
 
     const activeFrame = framesContainer.querySelector(`${sel}.active`);
@@ -161,6 +161,40 @@
     el.appendChild(detachBtn);
     el.appendChild(closeBtn);
     el.addEventListener('click', () => switchToDynTab(id));
+    el.draggable = true;
+    el.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', String(id));
+      el.classList.add('dyn-tab-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => {
+      el.classList.remove('dyn-tab-dragging');
+      container.querySelectorAll('.dyn-tab-drop-target').forEach(t => t.classList.remove('dyn-tab-drop-target'));
+    });
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('dyn-tab-drop-target');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('dyn-tab-drop-target'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      el.classList.remove('dyn-tab-drop-target');
+      const srcId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const destId = id;
+      if (srcId === destId) return;
+      const srcIdx = dynTabs.findIndex(t => t.id === srcId);
+      const destIdx = dynTabs.findIndex(t => t.id === destId);
+      if (srcIdx < 0 || destIdx < 0) return;
+      const [moved] = dynTabs.splice(srcIdx, 1);
+      dynTabs.splice(destIdx, 0, moved);
+      const srcEl = container.querySelector(`.dyn-tab[data-dyn-id="${srcId}"]`);
+      const destEl = container.querySelector(`.dyn-tab[data-dyn-id="${destId}"]`);
+      if (srcEl && destEl) {
+        if (srcIdx < destIdx) destEl.after(srcEl);
+        else container.insertBefore(srcEl, destEl);
+      }
+    });
     container.appendChild(el);
     updateTabDivider();
 
@@ -172,12 +206,12 @@
           <button class="dtf-btn" id="dtf-back" title="뒤로"><i class="ri-arrow-left-line"></i></button>
           <button class="dtf-btn" id="dtf-forward" title="앞으로"><i class="ri-arrow-right-line"></i></button>
           <button class="dtf-btn" id="dtf-refresh" title="새로고침"><i class="ri-refresh-line"></i></button>
-          <div class="dtf-url-bar"></div>
+          <input class="dtf-url-bar" id="dtf-url-input" type="text" placeholder="URL 입력 또는 검색어" />
           <div class="dtf-zoom-ctrl">
             <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-out" title="축소 (Ctrl+-)"><i class="ri-subtract-line"></i></button>
             <span class="dtf-zoom-label" id="dtf-zoom-label">100%</span>
             <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-in" title="확대 (Ctrl++)"><i class="ri-add-line"></i></button>
-            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-reset" title="원래 크기 (Ctrl+0)" style="font-size:11px;width:auto;padding:0 4px">초기화</button>
+            <button class="dtf-btn dtf-zoom-btn dtf-zoom-reset" id="dtf-zoom-reset" title="원래 크기 (Ctrl+0)">초기화</button>
           </div>
           <button class="dtf-btn" id="dtf-external" title="새 창에서 열기"><i class="ri-external-link-line"></i></button>
         </div>
@@ -205,6 +239,33 @@
         const t = dynTabs.find(t => t.id === activeDynTabId);
         if (t) window.open(t.url, '_blank');
       });
+
+      const urlInput = framesContainer.querySelector('#dtf-url-input');
+      urlInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const val = urlInput.value.trim();
+        if (!val) return;
+        const frame = getActiveFrame();
+        if (!frame) return;
+        let navigateUrl;
+        if (/^https?:\/\//i.test(val)) {
+          navigateUrl = val;
+        } else if (/^[^\s]+\.[^\s]+$/.test(val) && !/\s/.test(val)) {
+          navigateUrl = 'https://' + val;
+        } else {
+          navigateUrl = 'https://www.google.com/search?q=' + encodeURIComponent(val);
+        }
+        if (frame.tagName === 'WEBVIEW') {
+          frame.loadURL(navigateUrl);
+        } else {
+          frame.src = navigateUrl;
+        }
+        const tab = dynTabs.find(t => t.id === activeDynTabId);
+        if (tab) tab.url = navigateUrl;
+        urlInput.blur();
+      });
+      urlInput.addEventListener('focus', () => urlInput.select());
 
       framesContainer.querySelector('#dtf-zoom-in').addEventListener('click', () => {
         const frame = getActiveFrame();
@@ -252,16 +313,16 @@
       frame.addEventListener('did-navigate', (e) => {
         tab.url = e.url;
         if (activeDynTabId === id) {
-          const bar = framesContainer.querySelector('.dtf-url-bar');
-          if (bar) bar.textContent = e.url;
+          const bar = framesContainer.querySelector('#dtf-url-input');
+          if (bar) bar.value = e.url;
         }
         autoFillWebview(frame, e.url);
       });
       frame.addEventListener('did-navigate-in-page', (e) => {
         tab.url = e.url;
         if (activeDynTabId === id) {
-          const bar = framesContainer.querySelector('.dtf-url-bar');
-          if (bar) bar.textContent = e.url;
+          const bar = framesContainer.querySelector('#dtf-url-input');
+          if (bar) bar.value = e.url;
         }
       });
       frame.addEventListener('dom-ready', () => {
@@ -462,7 +523,8 @@
       if (showHeaders) {
         html += `<div class="type-section-title"><i class="${info.icon}"></i> ${info.label}</div>`;
       }
-      html += grouped[t].map(b => cardHTML(b, false)).join('');
+      const sorted = grouped[t].sort((a, b) => (b.is_pinned ? 1 : 0) - (a.is_pinned ? 1 : 0));
+      html += sorted.map(b => cardHTML(b, false)).join('');
     });
 
     if (sharedFiltered.length > 0 && activeCategory === 'all') {
@@ -503,6 +565,17 @@
       });
     });
 
+    grid.querySelectorAll('.btn-pin-bm').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        try {
+          const updated = await Auth.request(`/bookmarks/${btn.dataset.id}/pin`, { method: 'PATCH' });
+          const bm = bookmarks.find(b => b.id === btn.dataset.id);
+          if (bm) bm.is_pinned = updated.is_pinned;
+          renderBookmarks();
+        } catch (err) { UI.showToast(err.message, 'error'); }
+      });
+    });
     grid.querySelectorAll('.btn-edit-bm').forEach(btn => {
       btn.addEventListener('click', e => { e.stopPropagation(); openEditBookmark(btn.dataset.id); });
     });
@@ -542,6 +615,7 @@
       <div class="bookmark-card" data-id="${b.id}" draggable="${isShared ? 'false' : 'true'}">
         ${isShared ? '<span class="bookmark-shared-badge">공용</span>' : ''}
         ${!isShared ? `<div class="bookmark-actions">
+          <button class="icon-btn btn-pin-bm ${b.is_pinned ? 'pinned' : ''}" data-id="${b.id}" title="${b.is_pinned ? '고정 해제' : '상단 고정'}"><i class="${b.is_pinned ? 'ri-pushpin-fill' : 'ri-pushpin-line'}"></i></button>
           <button class="icon-btn btn-edit-bm" data-id="${b.id}" title="수정"><i class="ri-edit-line"></i></button>
           <button class="icon-btn btn-delete-bm" data-id="${b.id}" title="삭제"><i class="ri-delete-bin-line"></i></button>
         </div>` : ''}
