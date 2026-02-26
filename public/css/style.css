@@ -49,15 +49,16 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
-  overflow-x: hidden;
-  min-height: 100vh;
+  overflow: hidden;
+  height: 100vh;
 }
 
 .hidden { display: none !important; }
 
 .screen {
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
+  overflow: hidden;
 }
 #dashboard-screen {
   display: flex;
@@ -68,6 +69,7 @@ body {
 #dashboard-screen .tab-content.active {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 #dashboard-screen.hidden { display: none !important; }
 
@@ -336,16 +338,15 @@ body {
 
 /* ═══════════════ App Header ═══════════════ */
 .app-header {
-  height: 60px;
+  height: 56px;
   background: var(--white);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
-  padding: 0 24px;
-  position: sticky;
-  top: 0;
+  padding: 0 20px;
   z-index: 100;
   box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
 }
 
 .header-left {
@@ -1063,32 +1064,38 @@ body {
 /* ═══════════════ Main Tab Bar ═══════════════ */
 .main-tab-bar {
   display: flex;
+  align-items: center;
   background: var(--white);
   border-bottom: 1px solid var(--border);
-  padding: 0 24px;
-  gap: 0;
+  padding: 4px 16px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .main-tab {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 12px 20px;
-  border: none;
-  background: none;
-  font-size: 14px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13px;
   font-weight: 500;
   font-family: inherit;
   color: var(--text-light);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-xs);
   transition: all var(--transition);
 }
-.main-tab i { font-size: 18px; }
-.main-tab:hover { color: var(--primary); }
+.main-tab i { font-size: 16px; }
+.main-tab:hover {
+  color: var(--primary);
+  background: var(--primary-bg);
+}
 .main-tab.active {
   color: var(--primary);
-  border-bottom-color: var(--primary);
+  background: var(--primary-bg);
+  border-color: var(--primary-light);
   font-weight: 600;
 }
 
@@ -1521,9 +1528,9 @@ body {
 }
 .tab-divider {
   width: 1px;
-  height: 20px;
+  height: 24px;
   background: var(--border);
-  margin: auto 4px;
+  margin: auto 6px;
   flex-shrink: 0;
   display: none;
 }
@@ -1535,22 +1542,26 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 6px 8px 14px;
-  border: none;
-  background: none;
-  font-size: 14px;
+  padding: 6px 6px 6px 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 13px;
   color: var(--text-light);
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-xs);
   transition: all var(--transition);
-  max-width: 180px;
+  max-width: 200px;
   white-space: nowrap;
   overflow: hidden;
 }
-.dyn-tab:hover { color: var(--primary); }
+.dyn-tab:hover {
+  color: var(--text);
+  background: var(--bg);
+}
 .dyn-tab.active {
   color: var(--primary);
-  border-bottom-color: var(--primary);
+  background: var(--primary-bg);
+  border-color: var(--primary-light);
   font-weight: 600;
 }
 
@@ -1589,11 +1600,16 @@ body {
 .dyn-tab-close:hover { background: var(--danger); color: #fff; }
 
 .tab-add-btn {
-  padding: 10px 12px !important;
+  padding: 6px 10px !important;
   gap: 0 !important;
-  opacity: 0.6;
+  opacity: 0.5;
+  border: 1px dashed var(--border) !important;
 }
-.tab-add-btn:hover { opacity: 1; }
+.tab-add-btn:hover {
+  opacity: 1;
+  border-color: var(--primary-light) !important;
+  background: var(--primary-bg) !important;
+}
 .tab-add-btn span { display: none !important; }
 
 /* Dynamic Tab Frames */
@@ -1789,10 +1805,10 @@ body {
 
 /* ═══════════════ Responsive Additions ═══════════════ */
 @media (max-width: 768px) {
-  .main-tab-bar { padding: 0 10px; }
-  .main-tab { padding: 10px 14px; font-size: 13px; }
+  .main-tab-bar { padding: 4px 8px; }
+  .main-tab { padding: 6px 10px; font-size: 12px; }
   .main-tab span { display: none; }
-  .main-tab i { font-size: 20px; }
+  .main-tab i { font-size: 18px; }
   .calendar-layout { flex-direction: column; }
   .task-sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); max-height: 250px; }
   .calendar-grid { margin: 0 10px; padding: 0 0 10px; }
