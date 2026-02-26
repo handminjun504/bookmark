@@ -14,6 +14,17 @@
   // ═══════ Init ═══════
 
   async function init() {
+    const authMatch = location.hash.match(/__auth=([^&]+)/);
+    if (authMatch) {
+      try {
+        const data = JSON.parse(decodeURIComponent(escape(atob(authMatch[1]))));
+        if (data.token && data.user) {
+          sessionStorage.setItem('token', data.token);
+          sessionStorage.setItem('user', JSON.stringify(data.user));
+        }
+      } catch {}
+    }
+
     if (Auth.restoreSession()) {
       showDashboard();
       return;
@@ -127,7 +138,10 @@
       const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
       const currentUrl = frame ? (frame.src || frame.getURL?.() || url) : url;
       if (isElectron) {
-        window.open(currentUrl + '#__detach', '_blank');
+        const authPayload = btoa(unescape(encodeURIComponent(
+          JSON.stringify({ token: Auth.getToken(), user: Auth.getUser() })
+        )));
+        window.open(currentUrl + '#__detach&__auth=' + authPayload, '_blank');
       } else {
         window.open(currentUrl, '_blank');
       }
@@ -243,6 +257,13 @@
         }
         autoFillWebview(frame, e.url);
       });
+      frame.addEventListener('did-navigate-in-page', (e) => {
+        tab.url = e.url;
+        if (activeDynTabId === id) {
+          const bar = framesContainer.querySelector('.dtf-url-bar');
+          if (bar) bar.textContent = e.url;
+        }
+      });
       frame.addEventListener('dom-ready', () => {
         autoFillWebview(frame, url);
       });
@@ -256,6 +277,8 @@
           const pct = e.args[0];
           const label = document.getElementById('dtf-zoom-label');
           if (label && activeDynTabId === id) label.textContent = pct + '%';
+        } else if (e.channel === 'preload-ready') {
+          console.log('[LinkFlow] Webview preload ready:', e.args[0]?.domain);
         }
       });
     } else {
@@ -860,6 +883,8 @@
       const creds = await window.electronAPI.getPasswords(hostname);
       if (creds?.length && frame.send) {
         frame.send('pw-fill', creds);
+        setTimeout(() => { try { frame.send('pw-fill', creds); } catch {} }, 1000);
+        setTimeout(() => { try { frame.send('pw-fill', creds); } catch {} }, 2500);
       }
     } catch {}
   }
