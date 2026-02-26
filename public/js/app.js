@@ -94,8 +94,23 @@
 
     const tab = dynTabs.find(t => t.id === id);
     if (tab) {
+      tab.lastActive = Date.now();
       const urlBar = framesContainer.querySelector('#dtf-url-input');
       if (urlBar) urlBar.value = tab.url;
+
+      if (tab.hibernated) {
+        const frame = framesContainer.querySelector(`${sel}[data-dyn-id="${id}"]`);
+        if (frame && frame.tagName === 'WEBVIEW') {
+          frame.src = tab.url;
+          tab.hibernated = false;
+          const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
+          if (tabEl) tabEl.classList.remove('hibernated');
+        }
+      }
+
+      const noteKey = (() => { try { return new URL(tab.url).hostname; } catch { return ''; } })();
+      const noteBtn = document.getElementById('dtf-note-btn');
+      if (noteBtn) noteBtn.classList.toggle('has-note', !!urlNotes[noteKey]);
     }
 
     const activeFrame = framesContainer.querySelector(`${sel}.active`);
@@ -107,11 +122,16 @@
     if (divider) divider.classList.toggle('visible', dynTabs.length > 0);
   }
 
-  function createDynTab(url, title) {
+  let containers = [];
+  let splitMode = null;
+  let hibernateTimerId = null;
+  const urlNotes = JSON.parse(localStorage.getItem('lf_url_notes') || '{}');
+
+  function createDynTab(url, title, containerId) {
     const id = ++dynTabIdCounter;
     let hostname = '';
     try { hostname = new URL(url).hostname; } catch {}
-    const tab = { id, url, title: title || hostname || url };
+    const tab = { id, url, title: title || hostname || url, containerId: containerId || null, lastActive: Date.now(), hibernated: false };
     dynTabs.push(tab);
 
     const container = document.getElementById('dynamic-tabs');
@@ -162,6 +182,13 @@
     const loadingDot = document.createElement('span');
     loadingDot.className = 'dyn-tab-loading';
 
+    if (containerId) {
+      const ct = containers.find(c => c.id === containerId);
+      if (ct) {
+        el.style.borderBottom = `3px solid ${ct.color}`;
+        el.title = `[${ct.name}]`;
+      }
+    }
     el.appendChild(loadingDot);
     el.appendChild(favicon);
     el.appendChild(titleSpan);
@@ -250,6 +277,10 @@
             <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-in" title="확대 (Ctrl++)"><i class="ri-add-line"></i></button>
             <button class="dtf-btn dtf-zoom-btn dtf-zoom-reset" id="dtf-zoom-reset" title="원래 크기 (Ctrl+0)">초기화</button>
           </div>
+          <button class="dtf-btn" id="dtf-note-btn" title="사이트 메모"><i class="ri-sticky-note-line"></i></button>
+          <button class="dtf-btn" id="dtf-split-btn" title="화면 분할 (Ctrl+\\)"><i class="ri-layout-column-line"></i></button>
+          <button class="dtf-btn" id="dtf-pip-btn" title="PiP 미니 창"><i class="ri-picture-in-picture-exit-line"></i></button>
+          <button class="dtf-btn" id="dtf-ss-btn" title="스크린샷 (Ctrl+Shift+S)"><i class="ri-screenshot-line"></i></button>
           <button class="dtf-btn" id="dtf-external" title="새 창에서 열기"><i class="ri-external-link-line"></i></button>
         </div>
         <div class="dtf-frame-wrap"></div>
@@ -276,6 +307,10 @@
         const t = dynTabs.find(t => t.id === activeDynTabId);
         if (t) window.open(t.url, '_blank');
       });
+      framesContainer.querySelector('#dtf-note-btn').addEventListener('click', showUrlNotePopover);
+      framesContainer.querySelector('#dtf-split-btn').addEventListener('click', () => window.__toggleSplit());
+      framesContainer.querySelector('#dtf-pip-btn').addEventListener('click', () => window.__pip());
+      framesContainer.querySelector('#dtf-ss-btn').addEventListener('click', () => window.__screenshot());
 
       const urlInput = framesContainer.querySelector('#dtf-url-input');
       urlInput.addEventListener('keydown', (e) => {
@@ -331,7 +366,8 @@
       frame = document.createElement('webview');
       frame.dataset.dynId = id;
       frame.setAttribute('allowpopups', '');
-      frame.setAttribute('partition', 'persist:main');
+      const partition = containerId ? `persist:container_${containerId}` : 'persist:main';
+      frame.setAttribute('partition', partition);
       if (window.electronAPI?.webviewPreloadPath) {
         frame.setAttribute('preload', window.electronAPI.webviewPreloadPath);
       }
@@ -393,6 +429,12 @@
           const pct = e.args[0];
           const label = document.getElementById('dtf-zoom-label');
           if (label && activeDynTabId === id) label.textContent = pct + '%';
+        } else if (e.channel === 'gesture') {
+          const dir = e.args[0];
+          if (dir === 'left' && frame.canGoBack()) frame.goBack();
+          else if (dir === 'right' && frame.canGoForward()) frame.goForward();
+          else if (dir === 'down') createDynTab('https://www.google.com', 'Google');
+          else if (dir === 'up') closeDynTab(id);
         } else if (e.channel === 'preload-ready') {
           console.log('[LinkFlow] Webview preload ready:', e.args[0]?.domain);
         }
@@ -509,6 +551,10 @@
     if (isElectron && window.electronAPI?.listExtensions) {
       renderExtensionToolbar();
     }
+    if (isElectron && window.electronAPI?.containerList) {
+      window.electronAPI.containerList().then(list => { containers = list || []; });
+    }
+    startHibernation();
 
     const hashMatch = location.hash.match(/__open_tab=([^&]+)/);
     if (hashMatch) {
@@ -1246,6 +1292,295 @@
   }
 
   window.__showUpdateHistory = showUpdateHistory;
+
+  // ═══════ Quick Bookmark (Ctrl+D) ═══════
+  window.__quickBookmark = () => {
+    const tab = dynTabs.find(t => t.id === activeDynTabId);
+    if (!tab) { openAddBookmark(); return; }
+    document.getElementById('bookmark-modal-title').textContent = '빠른 북마크 추가';
+    document.getElementById('bm-submit-btn').textContent = '추가';
+    document.getElementById('bookmark-form').reset();
+    document.getElementById('bm-edit-id').value = '';
+    document.getElementById('bm-title').value = tab.title || '';
+    document.getElementById('bm-url').value = tab.url || '';
+    document.getElementById('bm-open-mode').value = 'auto';
+    const sharedWrap = document.getElementById('bm-shared-wrap');
+    if (Auth.isAdmin()) sharedWrap.classList.remove('hidden');
+    else sharedWrap.classList.add('hidden');
+    document.getElementById('bm-shared').checked = false;
+    populateCategorySelect();
+    UI.openModal('bookmark-modal');
+  };
+
+  // ═══════ Download Manager ═══════
+  const downloadItems = [];
+  window.__onDownload = (channel, data) => {
+    if (channel === 'download-started') {
+      downloadItems.push({ ...data, received: 0, state: 'progressing' });
+      renderDownloadBar();
+    } else if (channel === 'download-progress') {
+      const item = downloadItems.find(d => d.id === data.id);
+      if (item) { item.received = data.received; item.total = data.total; }
+      renderDownloadBar();
+    } else if (channel === 'download-done') {
+      const item = downloadItems.find(d => d.id === data.id);
+      if (item) { item.state = data.state; item.path = data.path; }
+      renderDownloadBar();
+    }
+  };
+  function renderDownloadBar() {
+    let bar = document.getElementById('download-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'download-bar';
+      bar.className = 'download-bar';
+      document.body.appendChild(bar);
+    }
+    const active = downloadItems.filter(d => d.state === 'progressing' || d.state === 'completed');
+    if (!active.length) { bar.classList.add('hidden'); return; }
+    bar.classList.remove('hidden');
+    bar.innerHTML = active.slice(-3).map(d => {
+      const pct = d.total ? Math.round((d.received / d.total) * 100) : 0;
+      const name = d.filename.length > 25 ? d.filename.slice(0, 22) + '...' : d.filename;
+      if (d.state === 'completed') {
+        return `<div class="dl-item dl-done">
+          <span class="dl-name">${name}</span>
+          <button class="dl-action" onclick="window.electronAPI?.downloadOpen('${d.path?.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">열기</button>
+          <button class="dl-action" onclick="window.electronAPI?.downloadShow('${d.path?.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">폴더</button>
+        </div>`;
+      }
+      return `<div class="dl-item"><span class="dl-name">${name}</span><div class="dl-progress"><div class="dl-progress-fill" style="width:${pct}%"></div></div><span class="dl-pct">${pct}%</span></div>`;
+    }).join('') + `<button class="dl-close" onclick="document.getElementById('download-bar').classList.add('hidden')">✕</button>`;
+  }
+
+  // ═══════ Command Palette (Ctrl+K) + Tab Search (Ctrl+Shift+A) ═══════
+  const visitHistory = [];
+  window.__commandPalette = (mode) => {
+    let overlay = document.getElementById('cmd-palette');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'cmd-palette';
+      overlay.className = 'cmd-palette-overlay';
+      overlay.innerHTML = `<div class="cmd-palette"><input type="text" id="cmd-input" placeholder="탭, 북마크, 액션 검색..." autocomplete="off" /><div id="cmd-results" class="cmd-results"></div></div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) window.__closeCommandPalette(); });
+      document.getElementById('cmd-input').addEventListener('input', () => renderPaletteResults());
+      document.getElementById('cmd-input').addEventListener('keydown', (e) => {
+        const items = document.querySelectorAll('.cmd-result-item');
+        const active = document.querySelector('.cmd-result-item.active');
+        let idx = [...items].indexOf(active);
+        if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(idx + 1, items.length - 1); items.forEach((it, i) => it.classList.toggle('active', i === idx)); items[idx]?.scrollIntoView({ block: 'nearest' }); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx - 1, 0); items.forEach((it, i) => it.classList.toggle('active', i === idx)); items[idx]?.scrollIntoView({ block: 'nearest' }); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (active) active.click(); }
+        else if (e.key === 'Escape') { window.__closeCommandPalette(); }
+      });
+    }
+    overlay.classList.remove('hidden');
+    const input = document.getElementById('cmd-input');
+    input.value = '';
+    input.placeholder = mode === 'tabs' ? '열린 탭 검색...' : '탭, 북마크, 액션 검색...';
+    input.dataset.mode = mode || 'all';
+    input.focus();
+    renderPaletteResults();
+  };
+  window.__closeCommandPalette = () => {
+    const overlay = document.getElementById('cmd-palette');
+    if (overlay) overlay.classList.add('hidden');
+  };
+  function renderPaletteResults() {
+    const input = document.getElementById('cmd-input');
+    const results = document.getElementById('cmd-results');
+    if (!input || !results) return;
+    const q = input.value.toLowerCase();
+    const mode = input.dataset.mode || 'all';
+    const items = [];
+    dynTabs.forEach(t => {
+      if (!q || t.title.toLowerCase().includes(q) || t.url.toLowerCase().includes(q)) {
+        items.push({ type: 'tab', icon: 'ri-window-line', label: t.title, sub: t.url, action: () => { switchToDynTab(t.id); window.__closeCommandPalette(); }});
+      }
+    });
+    if (mode !== 'tabs') {
+      bookmarks.forEach(b => {
+        if (!q || b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q)) {
+          items.push({ type: 'bookmark', icon: 'ri-bookmark-line', label: b.title, sub: b.url, action: () => { openInBrowser(b); window.__closeCommandPalette(); }});
+        }
+      });
+      const actions = [
+        { label: '새 탭 열기', icon: 'ri-add-line', action: () => { createDynTab('https://www.google.com', 'Google'); window.__closeCommandPalette(); }},
+        { label: '설정 열기', icon: 'ri-settings-3-line', action: () => { openSettings(); window.__closeCommandPalette(); }},
+        { label: '화면 잠금', icon: 'ri-lock-line', action: () => { Auth.showLockScreen(); window.__closeCommandPalette(); }},
+        { label: '화면 분할', icon: 'ri-layout-column-line', action: () => { window.__toggleSplit?.(); window.__closeCommandPalette(); }},
+        { label: '스크린샷', icon: 'ri-screenshot-line', action: () => { window.__screenshot?.(); window.__closeCommandPalette(); }},
+      ];
+      actions.forEach(a => {
+        if (!q || a.label.toLowerCase().includes(q)) items.push({ type: 'action', ...a });
+      });
+    }
+    results.innerHTML = items.slice(0, 15).map((it, i) => `
+      <div class="cmd-result-item ${i === 0 ? 'active' : ''}" data-idx="${i}">
+        <i class="${it.icon} cmd-result-icon"></i>
+        <div class="cmd-result-text"><div class="cmd-result-label">${escapeHtml(it.label)}</div>${it.sub ? `<div class="cmd-result-sub">${escapeHtml(it.sub.slice(0, 60))}</div>` : ''}</div>
+        <span class="cmd-result-type">${it.type === 'tab' ? '탭' : it.type === 'bookmark' ? '북마크' : '액션'}</span>
+      </div>
+    `).join('') || '<div class="cmd-result-empty">결과 없음</div>';
+    results.querySelectorAll('.cmd-result-item').forEach((el, i) => {
+      el.addEventListener('click', () => items[i]?.action());
+      el.addEventListener('mouseenter', () => {
+        results.querySelectorAll('.cmd-result-item').forEach(it => it.classList.remove('active'));
+        el.classList.add('active');
+      });
+    });
+  }
+
+  // ═══════ Split View (Ctrl+\) ═══════
+  window.__toggleSplit = () => {
+    const framesContainer = document.getElementById('dynamic-tab-frames');
+    const wrap = framesContainer?.querySelector('.dtf-frame-wrap');
+    if (!wrap) return;
+    if (splitMode) {
+      splitMode = null;
+      wrap.classList.remove('split-active');
+      wrap.querySelectorAll('webview, iframe').forEach(f => {
+        f.classList.remove('split-left', 'split-right');
+        if (f.dataset.dynId !== String(activeDynTabId)) f.classList.remove('active');
+      });
+      const resizer = wrap.querySelector('.split-resizer');
+      if (resizer) resizer.remove();
+    } else {
+      if (dynTabs.length < 2) { UI.showToast('분할하려면 탭이 2개 이상 필요합니다', 'info'); return; }
+      const leftId = activeDynTabId;
+      const otherTab = dynTabs.find(t => t.id !== leftId);
+      if (!otherTab) return;
+      splitMode = { leftId, rightId: otherTab.id };
+      wrap.classList.add('split-active');
+      const sel = isElectron ? 'webview' : 'iframe';
+      wrap.querySelectorAll(sel).forEach(f => {
+        const fid = parseInt(f.dataset.dynId, 10);
+        f.classList.remove('active', 'split-left', 'split-right');
+        if (fid === leftId) { f.classList.add('active', 'split-left'); }
+        else if (fid === otherTab.id) { f.classList.add('active', 'split-right'); }
+      });
+      const resizer = document.createElement('div');
+      resizer.className = 'split-resizer';
+      wrap.appendChild(resizer);
+      let dragging = false;
+      resizer.addEventListener('mousedown', () => { dragging = true; });
+      document.addEventListener('mousemove', (e) => {
+        if (!dragging) return;
+        const rect = wrap.getBoundingClientRect();
+        const pct = ((e.clientX - rect.left) / rect.width) * 100;
+        wrap.style.gridTemplateColumns = `${Math.max(20, Math.min(80, pct))}% 4px 1fr`;
+      });
+      document.addEventListener('mouseup', () => { dragging = false; });
+    }
+  };
+
+  // ═══════ Tab Hibernation ═══════
+  function startHibernation() {
+    if (hibernateTimerId) clearInterval(hibernateTimerId);
+    hibernateTimerId = setInterval(() => {
+      const timeout = 5 * 60 * 1000;
+      const now = Date.now();
+      dynTabs.forEach(t => {
+        if (t.id === activeDynTabId || t.hibernated) return;
+        if (now - t.lastActive > timeout) {
+          const sel = isElectron ? 'webview' : 'iframe';
+          const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${t.id}"]`);
+          if (frame) {
+            frame.src = 'about:blank';
+            t.hibernated = true;
+            const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${t.id}"]`);
+            if (tabEl) tabEl.classList.add('hibernated');
+          }
+        }
+      });
+    }, 60000);
+  }
+
+  // ═══════ Screenshot (Ctrl+Shift+S) ═══════
+  window.__screenshot = async () => {
+    if (!window.electronAPI?.captureWebview) return;
+    try {
+      const dataUrl = await window.electronAPI.captureWebview();
+      if (!dataUrl) { UI.showToast('캡처 실패', 'error'); return; }
+      let overlay = document.getElementById('screenshot-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'screenshot-overlay';
+        overlay.className = 'screenshot-overlay';
+        overlay.innerHTML = `<div class="ss-container"><img id="ss-preview" /><div class="ss-actions"><button class="ss-btn" id="ss-copy"><i class="ri-clipboard-line"></i> 복사</button><button class="ss-btn" id="ss-save"><i class="ri-download-line"></i> 저장</button><button class="ss-btn ss-close" id="ss-close"><i class="ri-close-line"></i> 닫기</button></div></div>`;
+        document.body.appendChild(overlay);
+        document.getElementById('ss-close').addEventListener('click', () => overlay.classList.add('hidden'));
+        document.getElementById('ss-copy').addEventListener('click', async () => {
+          try {
+            const img = document.getElementById('ss-preview');
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+            canvas.getContext('2d').drawImage(img, 0, 0);
+            canvas.toBlob(blob => { navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); });
+            UI.showToast('클립보드에 복사되었습니다', 'success');
+          } catch { UI.showToast('복사 실패', 'error'); }
+        });
+        document.getElementById('ss-save').addEventListener('click', () => {
+          const a = document.createElement('a');
+          a.href = document.getElementById('ss-preview').src;
+          a.download = `screenshot_${Date.now()}.png`;
+          a.click();
+        });
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.add('hidden'); });
+      }
+      document.getElementById('ss-preview').src = dataUrl;
+      overlay.classList.remove('hidden');
+    } catch { UI.showToast('캡처 실패', 'error'); }
+  };
+
+  // ═══════ URL Notes ═══════
+  function showUrlNotePopover() {
+    const tab = dynTabs.find(t => t.id === activeDynTabId);
+    if (!tab) return;
+    let host; try { host = new URL(tab.url).hostname; } catch { return; }
+    let pop = document.getElementById('url-note-popover');
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.id = 'url-note-popover';
+      pop.className = 'url-note-popover';
+      pop.innerHTML = `<textarea id="url-note-text" placeholder="이 사이트에 메모를 남겨보세요..."></textarea><div class="url-note-actions"><button id="url-note-save" class="url-note-btn">저장</button><button id="url-note-del" class="url-note-btn danger">삭제</button></div>`;
+      document.body.appendChild(pop);
+      document.getElementById('url-note-save').addEventListener('click', () => {
+        const val = document.getElementById('url-note-text').value.trim();
+        const h = pop.dataset.host;
+        if (val) urlNotes[h] = val;
+        else delete urlNotes[h];
+        localStorage.setItem('lf_url_notes', JSON.stringify(urlNotes));
+        pop.classList.add('hidden');
+        const noteBtn = document.getElementById('dtf-note-btn');
+        if (noteBtn) noteBtn.classList.toggle('has-note', !!val);
+        UI.showToast(val ? '메모 저장됨' : '메모 삭제됨', 'success');
+      });
+      document.getElementById('url-note-del').addEventListener('click', () => {
+        const h = pop.dataset.host;
+        delete urlNotes[h];
+        localStorage.setItem('lf_url_notes', JSON.stringify(urlNotes));
+        document.getElementById('url-note-text').value = '';
+        pop.classList.add('hidden');
+        const noteBtn = document.getElementById('dtf-note-btn');
+        if (noteBtn) noteBtn.classList.remove('has-note');
+      });
+    }
+    pop.dataset.host = host;
+    document.getElementById('url-note-text').value = urlNotes[host] || '';
+    pop.classList.toggle('hidden');
+    if (!pop.classList.contains('hidden')) document.getElementById('url-note-text').focus();
+  }
+
+  // ═══════ Picture-in-Picture ═══════
+  window.__pip = async () => {
+    if (!window.electronAPI?.pipCreate) return;
+    const tab = dynTabs.find(t => t.id === activeDynTabId);
+    if (!tab) return;
+    const partition = tab.containerId ? `persist:container_${tab.containerId}` : 'persist:main';
+    await window.electronAPI.pipCreate({ url: tab.url, partition });
+  };
 
   // ═══════ Browser View (Dynamic Tabs) ═══════
 

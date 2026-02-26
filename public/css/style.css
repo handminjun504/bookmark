@@ -2003,3 +2003,105 @@ body {
   .memos-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); padding: 8px 14px 14px; }
   .memos-header { padding: 14px 14px 8px; }
 }
+
+/* ═══════ Download Bar ═══════ */
+.download-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 9000;
+  background: var(--card-bg); border-top: 1px solid var(--border);
+  display: flex; align-items: center; padding: 6px 12px; gap: 12px;
+  box-shadow: 0 -2px 8px rgba(0,0,0,0.08); font-size: 13px;
+}
+.download-bar.hidden { display: none; }
+.dl-item { display: flex; align-items: center; gap: 8px; }
+.dl-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dl-progress { width: 100px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.dl-progress-fill { height: 100%; background: var(--primary); border-radius: 2px; transition: width 0.3s; }
+.dl-pct { font-size: 11px; color: var(--text-light); min-width: 30px; }
+.dl-done .dl-action { background: none; border: 1px solid var(--primary); color: var(--primary); border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer; }
+.dl-done .dl-action:hover { background: var(--primary-bg); }
+.dl-close { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-light); margin-left: auto; }
+
+/* ═══════ Command Palette ═══════ */
+.cmd-palette-overlay {
+  position: fixed; inset: 0; z-index: 10000;
+  background: rgba(0,0,0,0.4); display: flex; justify-content: center; padding-top: 15vh;
+}
+.cmd-palette-overlay.hidden { display: none; }
+.cmd-palette {
+  width: 560px; max-height: 420px; background: var(--card-bg); border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2); overflow: hidden; display: flex; flex-direction: column;
+}
+.cmd-palette input {
+  width: 100%; padding: 14px 18px; border: none; outline: none;
+  font-size: 16px; background: transparent; border-bottom: 1px solid var(--border);
+}
+.cmd-results { overflow-y: auto; flex: 1; padding: 4px 0; }
+.cmd-result-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px; cursor: pointer;
+}
+.cmd-result-item.active, .cmd-result-item:hover { background: var(--primary-bg); }
+.cmd-result-icon { font-size: 18px; color: var(--primary); flex-shrink: 0; width: 24px; text-align: center; }
+.cmd-result-text { flex: 1; min-width: 0; }
+.cmd-result-label { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-result-sub { font-size: 11px; color: var(--text-light); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-result-type { font-size: 10px; color: var(--text-muted); background: var(--bg); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+.cmd-result-empty { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* ═══════ Split View ═══════ */
+.dtf-frame-wrap.split-active {
+  display: grid !important;
+  grid-template-columns: 1fr 4px 1fr;
+}
+.dtf-frame-wrap.split-active webview.split-left,
+.dtf-frame-wrap.split-active iframe.split-left { grid-column: 1; display: flex; }
+.dtf-frame-wrap.split-active webview.split-right,
+.dtf-frame-wrap.split-active iframe.split-right { grid-column: 3; display: flex; }
+.split-resizer {
+  grid-column: 2; cursor: col-resize; background: var(--border);
+  transition: background 0.2s;
+}
+.split-resizer:hover { background: var(--primary); }
+
+/* ═══════ Tab Hibernation ═══════ */
+.dyn-tab.hibernated { opacity: 0.5; }
+.dyn-tab.hibernated .dyn-tab-title::before { content: '💤 '; }
+
+/* ═══════ Screenshot Overlay ═══════ */
+.screenshot-overlay {
+  position: fixed; inset: 0; z-index: 11000;
+  background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center;
+}
+.screenshot-overlay.hidden { display: none; }
+.ss-container { max-width: 90vw; max-height: 85vh; display: flex; flex-direction: column; gap: 12px; }
+.ss-container img { max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
+.ss-actions { display: flex; gap: 8px; justify-content: center; }
+.ss-btn {
+  background: var(--card-bg); color: var(--text); border: none; padding: 8px 16px;
+  border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 4px;
+}
+.ss-btn:hover { background: var(--primary); color: #fff; }
+.ss-btn.ss-close:hover { background: #e74c3c; }
+
+/* ═══════ URL Note Popover ═══════ */
+.url-note-popover {
+  position: fixed; top: 70px; right: 120px; z-index: 9500;
+  width: 280px; background: var(--card-bg); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 12px;
+}
+.url-note-popover.hidden { display: none; }
+.url-note-popover textarea {
+  width: 100%; height: 80px; border: 1px solid var(--border); border-radius: 6px;
+  padding: 8px; font-size: 13px; resize: vertical; outline: none;
+  font-family: inherit;
+}
+.url-note-popover textarea:focus { border-color: var(--primary); }
+.url-note-actions { display: flex; gap: 6px; margin-top: 8px; }
+.url-note-btn {
+  flex: 1; padding: 6px; border: none; border-radius: 4px; cursor: pointer;
+  font-size: 12px; background: var(--primary); color: #fff;
+}
+.url-note-btn.danger { background: #e74c3c; }
+.dtf-btn#dtf-note-btn.has-note { color: var(--primary); }
+
+/* ═══════ Container Color Bar ═══════ */
+.dyn-tab[style*="border-bottom"] { padding-bottom: 1px; }

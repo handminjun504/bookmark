@@ -126,6 +126,7 @@ const Auth = (() => {
   }
 
   function showLockScreen() {
+    if (!_user?.pin_code) return;
     const el = document.getElementById('lock-screen');
     if (!el || !el.classList.contains('hidden')) return;
     el.classList.remove('hidden');
