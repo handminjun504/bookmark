@@ -42,6 +42,7 @@
   function switchTab(tab) {
     activeTab = tab;
     activeDynTabId = null;
+    if (typeof applyZoom === 'function') applyZoom();
 
     document.querySelectorAll('.main-tab:not(.tab-add-btn)').forEach(t => {
       t.classList.toggle('active', t.dataset.tab === tab);
@@ -73,6 +74,7 @@
   function switchToDynTab(id) {
     activeDynTabId = id;
     activeTab = '__dyn__';
+    document.body.style.zoom = 1;
 
     document.querySelectorAll('.main-tab:not(.tab-add-btn)').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.dyn-tab').forEach(t => {
@@ -1912,10 +1914,14 @@
     function setZoom(z) {
       z = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
       manualZoom = z;
-      document.body.style.zoom = z;
+      if (activeDynTabId == null) document.body.style.zoom = z;
     }
     function applyZoom() {
-      document.body.style.zoom = manualZoom ?? autoZoom();
+      if (activeDynTabId != null) {
+        document.body.style.zoom = 1;
+      } else {
+        document.body.style.zoom = manualZoom ?? autoZoom();
+      }
     }
     applyZoom();
     window.addEventListener('resize', () => { if (!manualZoom) applyZoom(); });
