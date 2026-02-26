@@ -1653,6 +1653,33 @@ body {
   user-select: all;
 }
 
+.dtf-zoom-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 0 4px;
+  height: 28px;
+}
+.dtf-zoom-btn {
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 13px !important;
+  border-radius: 50% !important;
+  padding: 0 !important;
+}
+.dtf-zoom-label {
+  font-size: 11px;
+  color: var(--text-light);
+  min-width: 36px;
+  text-align: center;
+  user-select: none;
+  font-weight: 500;
+}
+
 .dtf-frame-wrap {
   flex: 1;
   position: relative;

@@ -86,6 +86,9 @@
       const urlBar = framesContainer.querySelector('.dtf-url-bar');
       if (urlBar) urlBar.textContent = tab.url;
     }
+
+    const activeFrame = framesContainer.querySelector(`${sel}.active`);
+    updateZoomLabel(activeFrame);
   }
 
   function updateTabDivider() {
@@ -156,6 +159,12 @@
           <button class="dtf-btn" id="dtf-forward" title="앞으로"><i class="ri-arrow-right-line"></i></button>
           <button class="dtf-btn" id="dtf-refresh" title="새로고침"><i class="ri-refresh-line"></i></button>
           <div class="dtf-url-bar"></div>
+          <div class="dtf-zoom-ctrl">
+            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-out" title="축소 (Ctrl+-)"><i class="ri-subtract-line"></i></button>
+            <span class="dtf-zoom-label" id="dtf-zoom-label">100%</span>
+            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-in" title="확대 (Ctrl++)"><i class="ri-add-line"></i></button>
+            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-reset" title="원래 크기 (Ctrl+0)" style="font-size:11px;width:auto;padding:0 4px">초기화</button>
+          </div>
           <button class="dtf-btn" id="dtf-external" title="새 창에서 열기"><i class="ri-external-link-line"></i></button>
         </div>
         <div class="dtf-frame-wrap"></div>
@@ -181,6 +190,25 @@
       framesContainer.querySelector('#dtf-external').addEventListener('click', () => {
         const t = dynTabs.find(t => t.id === activeDynTabId);
         if (t) window.open(t.url, '_blank');
+      });
+
+      framesContainer.querySelector('#dtf-zoom-in').addEventListener('click', () => {
+        const frame = getActiveFrame();
+        if (!frame || frame.tagName !== 'WEBVIEW') return;
+        frame.setZoomLevel(Math.min(5, (frame.getZoomLevel() || 0) + 0.5));
+        updateZoomLabel(frame);
+      });
+      framesContainer.querySelector('#dtf-zoom-out').addEventListener('click', () => {
+        const frame = getActiveFrame();
+        if (!frame || frame.tagName !== 'WEBVIEW') return;
+        frame.setZoomLevel(Math.max(-5, (frame.getZoomLevel() || 0) - 0.5));
+        updateZoomLabel(frame);
+      });
+      framesContainer.querySelector('#dtf-zoom-reset').addEventListener('click', () => {
+        const frame = getActiveFrame();
+        if (!frame || frame.tagName !== 'WEBVIEW') return;
+        frame.setZoomLevel(0);
+        updateZoomLabel(frame);
       });
     }
 
@@ -224,6 +252,10 @@
           showPwSaveBar(data, frame);
         } else if (e.channel === 'pw-detected') {
           autoFillWebview(frame, frame.getURL?.() || url);
+        } else if (e.channel === 'zoom-changed') {
+          const pct = e.args[0];
+          const label = document.getElementById('dtf-zoom-label');
+          if (label && activeDynTabId === id) label.textContent = pct + '%';
         }
       });
     } else {
@@ -241,6 +273,17 @@
   function getActiveFrame() {
     const sel = isElectron ? 'webview.active' : 'iframe.active';
     return document.querySelector(`#dynamic-tab-frames .dtf-frame-wrap ${sel}`);
+  }
+
+  function updateZoomLabel(frame) {
+    const label = document.getElementById('dtf-zoom-label');
+    if (!label || !frame) return;
+    if (frame.tagName === 'WEBVIEW' && frame.getZoomFactor) {
+      try { label.textContent = Math.round(frame.getZoomFactor() * 100) + '%'; }
+      catch { label.textContent = '100%'; }
+    } else {
+      label.textContent = '100%';
+    }
   }
 
   function closeDynTab(id) {
