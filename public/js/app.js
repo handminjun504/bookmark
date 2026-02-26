@@ -385,6 +385,10 @@
           showPwSaveBar(data, frame);
         } else if (e.channel === 'pw-detected') {
           autoFillWebview(frame, frame.getURL?.() || url);
+        } else if (e.channel === 'nav-back') {
+          if (frame.canGoBack()) frame.goBack();
+        } else if (e.channel === 'nav-forward') {
+          if (frame.canGoForward()) frame.goForward();
         } else if (e.channel === 'zoom-changed') {
           const pct = e.args[0];
           const label = document.getElementById('dtf-zoom-label');
@@ -1582,6 +1586,7 @@
     window.addEventListener('resize', () => { if (!manualZoom) applyZoom(); });
     window.addEventListener('wheel', (e) => {
       if (!e.ctrlKey) return;
+      if (activeDynTabId != null) return;
       e.preventDefault();
       const current = manualZoom ?? autoZoom();
       const step = 0.05;
