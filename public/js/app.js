@@ -132,12 +132,15 @@
     detachBtn.className = 'dyn-tab-detach';
     detachBtn.innerHTML = '<i class="ri-external-link-line"></i>';
     detachBtn.title = '새 창으로 분리';
-    detachBtn.addEventListener('click', (e) => {
+    detachBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const sel = isElectron ? 'webview' : 'iframe';
       const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
       const currentUrl = frame ? (frame.src || frame.getURL?.() || url) : url;
       if (isElectron) {
+        if (window.electronAPI?.flushCookies) {
+          await window.electronAPI.flushCookies();
+        }
         const authPayload = btoa(unescape(encodeURIComponent(
           JSON.stringify({ token: Auth.getToken(), user: Auth.getUser() })
         )));
@@ -145,7 +148,7 @@
       } else {
         window.open(currentUrl, '_blank');
       }
-      closeDynTab(id);
+      removeDynTabUI(id);
     });
 
     const closeBtn = document.createElement('span');
@@ -367,6 +370,34 @@
       catch { label.textContent = '100%'; }
     } else {
       label.textContent = '100%';
+    }
+  }
+
+  function removeDynTabUI(id) {
+    const idx = dynTabs.findIndex(t => t.id === id);
+    if (idx === -1) return;
+    dynTabs.splice(idx, 1);
+
+    const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
+    if (tabEl) tabEl.remove();
+
+    const sel = isElectron ? 'webview' : 'iframe';
+    const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${id}"]`);
+    if (frame) {
+      frame.classList.remove('active');
+      frame.style.display = 'none';
+      setTimeout(() => { try { frame.src = 'about:blank'; frame.remove(); } catch {} }, 3000);
+    }
+
+    updateTabDivider();
+
+    if (activeDynTabId === id) {
+      if (dynTabs.length > 0) {
+        const nearest = dynTabs[Math.min(idx, dynTabs.length - 1)];
+        switchToDynTab(nearest.id);
+      } else {
+        switchTab('bookmarks');
+      }
     }
   }
 
