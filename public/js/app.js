@@ -1631,54 +1631,62 @@
       bar.id = 'find-bar';
       bar.className = 'find-bar';
       bar.innerHTML = `
-        <input type="text" id="find-bar-input" placeholder="페이지에서 찾기..." />
+        <input type="text" id="find-bar-input" placeholder="페이지에서 찾기..." autocomplete="off" />
         <span id="find-bar-count" class="find-bar-count"></span>
-        <button class="find-bar-btn" id="find-bar-prev" title="이전"><i class="ri-arrow-up-s-line"></i></button>
-        <button class="find-bar-btn" id="find-bar-next" title="다음"><i class="ri-arrow-down-s-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-prev" title="이전 (Shift+Enter)"><i class="ri-arrow-up-s-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-next" title="다음 (Enter)"><i class="ri-arrow-down-s-line"></i></button>
         <button class="find-bar-btn" id="find-bar-close" title="닫기 (Esc)"><i class="ri-close-line"></i></button>
       `;
       const toolbar = framesContainer.querySelector('.dtf-toolbar');
       if (toolbar) toolbar.after(bar);
       else framesContainer.prepend(bar);
 
-      document.getElementById('find-bar-input').addEventListener('input', (ev) => {
+      const findInput = document.getElementById('find-bar-input');
+      findInput.addEventListener('input', (ev) => {
         const f = getActiveFrame();
         if (!f || f.tagName !== 'WEBVIEW') return;
         const q = ev.target.value;
         if (q) f.findInPage(q);
-        else f.stopFindInPage('clearSelection');
+        else { f.stopFindInPage('clearSelection'); document.getElementById('find-bar-count').textContent = ''; }
       });
-      document.getElementById('find-bar-input').addEventListener('keydown', (ev) => {
+      findInput.addEventListener('keydown', (ev) => {
+        ev.stopPropagation();
         if (ev.key === 'Enter') {
+          ev.preventDefault();
           const f = getActiveFrame();
-          if (f && f.tagName === 'WEBVIEW') f.findInPage(ev.target.value, { forward: !ev.shiftKey });
+          const q = findInput.value;
+          if (f && f.tagName === 'WEBVIEW' && q) f.findInPage(q, { forward: !ev.shiftKey, findNext: true });
         } else if (ev.key === 'Escape') {
           window.__closeFindBar();
         }
       });
+      findInput.addEventListener('focus', () => { findInput.dataset.focused = '1'; });
+      findInput.addEventListener('blur', () => { delete findInput.dataset.focused; });
       document.getElementById('find-bar-next').addEventListener('click', () => {
         const f = getActiveFrame();
-        const q = document.getElementById('find-bar-input').value;
+        const q = findInput.value;
         if (f && q) f.findInPage(q, { forward: true, findNext: true });
+        findInput.focus();
       });
       document.getElementById('find-bar-prev').addEventListener('click', () => {
         const f = getActiveFrame();
-        const q = document.getElementById('find-bar-input').value;
+        const q = findInput.value;
         if (f && q) f.findInPage(q, { forward: false, findNext: true });
+        findInput.focus();
       });
       document.getElementById('find-bar-close').addEventListener('click', () => window.__closeFindBar());
     }
     bar.classList.remove('hidden');
     const input = document.getElementById('find-bar-input');
-    input.focus();
-    input.select();
+    setTimeout(() => { input.focus(); input.select(); }, 50);
   };
   window.__closeFindBar = () => {
     const bar = document.getElementById('find-bar');
     if (bar) bar.classList.add('hidden');
     const frame = getActiveFrame();
     if (frame && frame.tagName === 'WEBVIEW') frame.stopFindInPage('clearSelection');
-    document.getElementById('find-bar-count')?.replaceChildren();
+    const countEl = document.getElementById('find-bar-count');
+    if (countEl) countEl.textContent = '';
   };
 
   function showTabContextMenu(tabId, x, y) {
@@ -1826,6 +1834,16 @@
   // ═══════ Event Bindings ═══════
 
   document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'f' && activeDynTabId != null) {
+        e.preventDefault();
+        window.__findInPage && window.__findInPage();
+      }
+      if (e.key === 'Escape') {
+        window.__closeFindBar && window.__closeFindBar();
+      }
+    });
+
     // Tab navigation
     document.querySelectorAll('.main-tab[data-tab]').forEach(tab => {
       tab.addEventListener('click', () => switchTab(tab.dataset.tab));
