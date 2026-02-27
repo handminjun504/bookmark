@@ -35,9 +35,12 @@ const Calendar = (() => {
     });
 
     document.getElementById('evt-recurrence').addEventListener('change', e => {
-      const hasRecurrence = !!e.target.value;
+      const val = e.target.value;
+      const hasRecurrence = !!val;
+      const isMonthly = val === 'monthly';
       document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
       document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
+      document.getElementById('evt-recurrence-day-wrap').style.display = isMonthly ? '' : 'none';
     });
 
     requestNotificationPermission();
@@ -234,8 +237,10 @@ const Calendar = (() => {
     document.getElementById('evt-color').value = '#4DA8DA';
     document.getElementById('evt-edit-id').value = '';
     document.getElementById('evt-recurrence-end-wrap').style.display = 'none';
+    document.getElementById('evt-recurrence-day-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend').checked = true;
+    document.getElementById('evt-recurrence-day').value = '';
     resetColorPicker('evt-color-picker', '#4DA8DA');
     UI.openModal('event-modal');
   }
@@ -256,8 +261,11 @@ const Calendar = (() => {
     document.getElementById('evt-recurrence').value = ev.recurrence_type || '';
     document.getElementById('evt-recurrence-end').value = ev.recurrence_end || '';
     const hasRecurrence = !!ev.recurrence_type;
+    const isMonthly = ev.recurrence_type === 'monthly';
     document.getElementById('evt-recurrence-end-wrap').style.display = hasRecurrence ? '' : 'none';
     document.getElementById('evt-skip-weekend-wrap').style.display = hasRecurrence ? '' : 'none';
+    document.getElementById('evt-recurrence-day-wrap').style.display = isMonthly ? '' : 'none';
+    document.getElementById('evt-recurrence-day').value = isMonthly ? (ev.recurrence_day || new Date(ev.start_date + 'T00:00:00').getDate()) : '';
     document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
     document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-color').value = ev.color || '#4DA8DA';
@@ -276,9 +284,27 @@ const Calendar = (() => {
     const id = document.getElementById('evt-edit-id').value;
     const remindVal = document.getElementById('evt-remind').value;
     const recurrence = document.getElementById('evt-recurrence').value;
+
+    let startDate = document.getElementById('evt-date').value;
+    let recurrenceDay = null;
+    if (recurrence === 'monthly') {
+      const dayInput = document.getElementById('evt-recurrence-day').value;
+      if (dayInput) {
+        recurrenceDay = Math.min(31, Math.max(1, parseInt(dayInput, 10)));
+        const parts = startDate.split('-');
+        if (parts.length === 3) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10);
+          const maxDay = new Date(y, m, 0).getDate();
+          const day = Math.min(recurrenceDay, maxDay);
+          startDate = `${parts[0]}-${parts[1]}-${String(day).padStart(2, '0')}`;
+        }
+      }
+    }
+
     const data = {
       title: document.getElementById('evt-title').value.trim(),
-      start_date: document.getElementById('evt-date').value,
+      start_date: startDate,
       start_time: document.getElementById('evt-time').value || null,
       end_date: document.getElementById('evt-end-date').value || null,
       description: document.getElementById('evt-desc').value.trim() || null,
@@ -287,6 +313,7 @@ const Calendar = (() => {
       recurrence_type: recurrence || null,
       recurrence_end: recurrence ? (document.getElementById('evt-recurrence-end').value || null) : null,
       recurrence_interval: 1,
+      recurrence_day: recurrenceDay,
       is_task: document.getElementById('evt-is-task').checked,
       skip_weekend: recurrence ? document.getElementById('evt-skip-weekend').checked : false,
     };

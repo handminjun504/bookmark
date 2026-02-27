@@ -88,6 +88,7 @@ class EventCreate(BaseModel):
     recurrence_type: Optional[str] = None
     recurrence_end: Optional[str] = None
     recurrence_interval: int = 1
+    recurrence_day: Optional[int] = None
     is_task: bool = False
     skip_weekend: bool = False
 
@@ -103,6 +104,7 @@ class EventUpdate(BaseModel):
     recurrence_type: Optional[str] = None
     recurrence_end: Optional[str] = None
     recurrence_interval: Optional[int] = None
+    recurrence_day: Optional[int] = None
     is_task: Optional[bool] = None
     skip_weekend: Optional[bool] = None
 

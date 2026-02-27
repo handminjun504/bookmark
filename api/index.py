@@ -577,26 +577,48 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
         r_end = min(r_end, view_end)
         interval = ev.get("recurrence_interval") or 1
         skip_weekend = ev.get("skip_weekend", False)
-        current = base
+        rec_day = ev.get("recurrence_day")
 
-        while current <= r_end:
-            display_date = _adjust_to_weekday(current) if skip_weekend else current
-            if display_date >= view_start and display_date <= r_end:
-                instance = dict(ev)
-                instance["start_date"] = display_date.isoformat()
-                instance["_recurring"] = True
-                expanded.append(instance)
+        if rtype == "monthly" and rec_day:
+            import calendar as cal_mod
+            cur_year, cur_month = base.year, base.month
+            while True:
+                max_day = cal_mod.monthrange(cur_year, cur_month)[1]
+                day = min(rec_day, max_day)
+                current = date(cur_year, cur_month, day)
+                if current > r_end:
+                    break
+                if current >= view_start:
+                    display_date = _adjust_to_weekday(current) if skip_weekend else current
+                    if display_date >= view_start and display_date <= r_end:
+                        instance = dict(ev)
+                        instance["start_date"] = display_date.isoformat()
+                        instance["_recurring"] = True
+                        expanded.append(instance)
+                cur_month += interval
+                if cur_month > 12:
+                    cur_year += (cur_month - 1) // 12
+                    cur_month = (cur_month - 1) % 12 + 1
+        else:
+            current = base
+            while current <= r_end:
+                display_date = _adjust_to_weekday(current) if skip_weekend else current
+                if display_date >= view_start and display_date <= r_end:
+                    instance = dict(ev)
+                    instance["start_date"] = display_date.isoformat()
+                    instance["_recurring"] = True
+                    expanded.append(instance)
 
-            if rtype == "daily":
-                current += timedelta(days=interval)
-            elif rtype == "weekly":
-                current += timedelta(weeks=interval)
-            elif rtype == "monthly":
-                current += relativedelta(months=interval)
-            elif rtype == "yearly":
-                current += relativedelta(years=interval)
-            else:
-                break
+                if rtype == "daily":
+                    current += timedelta(days=interval)
+                elif rtype == "weekly":
+                    current += timedelta(weeks=interval)
+                elif rtype == "monthly":
+                    current += relativedelta(months=interval)
+                elif rtype == "yearly":
+                    current += relativedelta(years=interval)
+                else:
+                    break
 
     expanded.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
     return expanded
@@ -665,6 +687,7 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         "recurrence_type": req.recurrence_type,
         "recurrence_end": req.recurrence_end,
         "recurrence_interval": req.recurrence_interval,
+        "recurrence_day": req.recurrence_day,
         "is_task": req.is_task,
         "skip_weekend": req.skip_weekend,
     }
