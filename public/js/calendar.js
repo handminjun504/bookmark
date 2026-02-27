@@ -79,17 +79,21 @@ const Calendar = (() => {
     document.getElementById('cal-month-title').textContent =
       `${currentYear}년 ${currentMonth + 1}월`;
 
+    if (!Auth.isLoggedIn()) {
+      events = [];
+      render();
+      return;
+    }
+
     try {
-      if (!Auth.isLoggedIn()) {
-        events = [];
-        render();
-        return;
-      }
-      events = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}`);
+      const [eventsData, _holidays] = await Promise.all([
+        Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}`),
+        loadHolidays(currentYear),
+      ]);
+      events = eventsData;
     } catch (err) {
       console.error('[Calendar] 일정 로드 실패:', err.message);
-      if (err.message !== 'Session expired' && retryCount < 2) {
-        await new Promise(r => setTimeout(r, 1000));
+      if (err.message !== 'Session expired' && retryCount < 1) {
         return load(retryCount + 1);
       }
       if (err.message !== 'Session expired' && typeof UI !== 'undefined') {
@@ -97,7 +101,6 @@ const Calendar = (() => {
       }
       events = [];
     }
-    await loadHolidays(currentYear);
     render();
     scheduleNotifications();
     loadWeekTasks();
@@ -233,12 +236,14 @@ const Calendar = (() => {
 
     container.querySelectorAll('.task-check').forEach(cb => {
       cb.addEventListener('change', async () => {
+        const item = cb.closest('.task-item');
+        if (item) item.classList.toggle('task-done');
         try {
           await Auth.request(`/events/${cb.dataset.id}/done`, { method: 'PATCH' });
-          loadWeekTasks();
           load();
         } catch (err) {
           UI.showToast(err.message, 'error');
+          if (item) item.classList.toggle('task-done');
         }
       });
     });
@@ -368,6 +373,7 @@ const Calendar = (() => {
       client_id: clientVal || null,
     };
 
+    UI.closeModal('event-modal');
     try {
       if (id) {
         await Auth.request(`/events/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -376,7 +382,6 @@ const Calendar = (() => {
         await Auth.request('/events', { method: 'POST', body: JSON.stringify(data) });
         UI.showToast('일정이 추가되었습니다', 'success');
       }
-      UI.closeModal('event-modal');
       load();
     } catch (err) {
       UI.showToast(err.message, 'error');
@@ -388,13 +393,16 @@ const Calendar = (() => {
     if (!id) return;
     const ok = await UI.confirm('삭제 확인', '이 일정을 삭제하시겠습니까?');
     if (!ok) return;
+    UI.closeModal('event-modal');
+    events = events.filter(e => e.id !== id);
+    render();
     try {
       await Auth.request(`/events/${id}`, { method: 'DELETE' });
       UI.showToast('삭제되었습니다', 'success');
-      UI.closeModal('event-modal');
       load();
     } catch (err) {
       UI.showToast(err.message, 'error');
+      load();
     }
   }
 
@@ -432,10 +440,9 @@ const Calendar = (() => {
     });
   }
 
+  const _escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function escapeHtml(str) {
-    const d = document.createElement('div');
-    d.textContent = str;
-    return d.innerHTML;
+    return str ? str.replace(/[&<>"']/g, c => _escMap[c]) : '';
   }
 
   return { init, load, openAddEvent, loadClientOptions, getClientName };

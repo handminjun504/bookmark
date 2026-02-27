@@ -653,30 +653,24 @@ async def get_events(year: int, month: int, user=Depends(get_current_user)):
     start_str = view_start.isoformat()
     end_str = view_end.isoformat()
 
-    single = (
+    result = (
         db.table("events")
         .select("*")
         .eq("user_id", user["sub"])
-        .gte("start_date", start_str)
         .lt("start_date", end_str)
+        .or_(f"start_date.gte.{start_str},recurrence_type.neq.null")
         .order("start_date")
         .order("start_time")
         .execute()
     )
 
-    recurring = (
-        db.table("events")
-        .select("*")
-        .eq("user_id", user["sub"])
-        .lt("start_date", end_str)
-        .execute()
-    )
-    recurring_only = [e for e in recurring.data if e.get("recurrence_type")]
+    recurring_only = [e for e in result.data if e.get("recurrence_type")]
+    non_recurring = [e for e in result.data if not e.get("recurrence_type")]
 
-    non_recurring = [e for e in single.data if not e.get("recurrence_type")]
     all_events = _expand_recurring(recurring_only, view_start, view_end)
+    seen_ids = {(x["id"], x["start_date"]) for x in all_events}
     for ev in non_recurring:
-        if not any(x["id"] == ev["id"] and x["start_date"] == ev["start_date"] for x in all_events):
+        if (ev["id"], ev["start_date"]) not in seen_ids:
             all_events.append(ev)
 
     all_events.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))

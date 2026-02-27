@@ -11,8 +11,21 @@ def _pg_value(val):
     return str(val)
 
 
+_http_pool = None
+
+def _get_pool():
+    global _http_pool
+    if _http_pool is None:
+        _http_pool = httpx.Client(
+            timeout=10,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+            http2=False,
+        )
+    return _http_pool
+
+
 class SupabaseTable:
-    """Lightweight Supabase PostgREST client using httpx (no heavy SDK)."""
+    """Lightweight Supabase PostgREST client using httpx with connection pooling."""
 
     def __init__(self, base_url: str, api_key: str):
         self.base_url = base_url.rstrip("/")
@@ -88,6 +101,14 @@ class QueryBuilder:
         self._params.append((col, f"is.{_pg_value(val)}"))
         return self
 
+    def not_(self, col, op, val):
+        self._params.append((col, f"not.{op}.{_pg_value(val)}"))
+        return self
+
+    def or_(self, conditions):
+        self._params.append(("or", f"({conditions})"))
+        return self
+
     def order(self, col, desc=False):
         direction = "desc" if desc else "asc"
         for i, (k, v) in enumerate(self._params):
@@ -102,18 +123,18 @@ class QueryBuilder:
         return self
 
     def execute(self):
+        pool = _get_pool()
         params = self._params
-        with httpx.Client(timeout=15) as client:
-            if self._method == "GET":
-                r = client.get(self._url, headers=self._headers, params=params)
-            elif self._method == "POST":
-                r = client.post(self._url, headers=self._headers, params=params, json=self._body)
-            elif self._method == "PATCH":
-                r = client.patch(self._url, headers=self._headers, params=params, json=self._body)
-            elif self._method == "DELETE":
-                r = client.delete(self._url, headers=self._headers, params=params)
-            else:
-                raise ValueError(f"Unknown method: {self._method}")
+        if self._method == "GET":
+            r = pool.get(self._url, headers=self._headers, params=params)
+        elif self._method == "POST":
+            r = pool.post(self._url, headers=self._headers, params=params, json=self._body)
+        elif self._method == "PATCH":
+            r = pool.patch(self._url, headers=self._headers, params=params, json=self._body)
+        elif self._method == "DELETE":
+            r = pool.delete(self._url, headers=self._headers, params=params)
+        else:
+            raise ValueError(f"Unknown method: {self._method}")
 
         if r.status_code >= 400:
             raise Exception(f"Supabase error {r.status_code}: {r.text}")
