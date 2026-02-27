@@ -108,9 +108,13 @@
         const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
         if (tabEl) tabEl.style.opacity = '';
       } else if (tab.hibernated) {
-        if (frame && frame.tagName === 'WEBVIEW') {
-          frame.src = tab.url;
+        const restoreUrl = tab._savedUrl || tab.url;
+        if (frame) {
+          tab.url = restoreUrl;
           tab.hibernated = false;
+          delete tab._savedUrl;
+          frame.src = restoreUrl;
+          if (urlBar) urlBar.value = restoreUrl;
           const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
           if (tabEl) tabEl.classList.remove('hibernated');
         }
@@ -531,6 +535,7 @@
         }
       });
       frame.addEventListener('did-navigate', (e) => {
+        if (tab.hibernated) return;
         tab.url = e.url;
         if (activeDynTabId === id) {
           const bar = framesContainer.querySelector('#dtf-url-input');
@@ -539,6 +544,7 @@
         autoFillWebview(frame, e.url);
       });
       frame.addEventListener('did-navigate-in-page', (e) => {
+        if (tab.hibernated) return;
         tab.url = e.url;
         if (activeDynTabId === id) {
           const bar = framesContainer.querySelector('#dtf-url-input');
@@ -2162,8 +2168,9 @@
           const sel = isElectron ? 'webview' : 'iframe';
           const frame = document.querySelector(`#dynamic-tab-frames ${sel}[data-dyn-id="${t.id}"]`);
           if (frame) {
-            frame.src = 'about:blank';
+            t._savedUrl = t.url;
             t.hibernated = true;
+            frame.src = 'about:blank';
             const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${t.id}"]`);
             if (tabEl) tabEl.classList.add('hibernated');
           }
