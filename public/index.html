@@ -69,6 +69,7 @@
         <div class="ext-toolbar" id="ext-toolbar" style="display:none"></div>
         <button class="icon-btn" id="btn-add-bookmark" title="북마크 추가"><i class="ri-add-circle-line"></i></button>
         <button class="icon-btn" id="btn-settings" title="설정"><i class="ri-settings-3-line"></i></button>
+        <button class="icon-btn" id="btn-clients" title="거래처" style="display:none"><i class="ri-building-2-line"></i></button>
         <button class="icon-btn" id="btn-admin" title="관리자" style="display:none"><i class="ri-admin-line"></i></button>
         <div class="user-badge" id="user-badge">
           <span id="user-display-name"></span>
@@ -210,6 +211,17 @@
     </div>
     <div class="panel-body">
       <div class="setting-group">
+        <h3>팀 관리</h3>
+        <div class="admin-team-actions">
+          <div class="input-group input-group-inline" style="flex:1;margin-bottom:0">
+            <i class="ri-team-line"></i>
+            <input type="text" id="new-team-name" placeholder="새 팀 이름" />
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-create-team"><i class="ri-add-line"></i> 추가</button>
+        </div>
+        <div id="admin-team-list" class="team-list"></div>
+      </div>
+      <div class="setting-group">
         <h3>사용자 관리</h3>
         <button class="btn btn-primary btn-sm" id="btn-create-user"><i class="ri-user-add-line"></i> 사용자 생성</button>
         <div id="admin-user-list" class="user-list"></div>
@@ -217,7 +229,106 @@
     </div>
   </div>
 
+  <!-- ══════ Clients Panel ══════ -->
+  <div id="clients-panel" class="side-panel hidden">
+    <div class="panel-header">
+      <h2><i class="ri-building-2-line"></i> 거래처</h2>
+      <button class="icon-btn" id="close-clients"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="panel-body">
+      <div class="clients-toolbar">
+        <button class="btn btn-primary btn-sm" id="btn-add-client"><i class="ri-add-line"></i> 거래처 추가</button>
+      </div>
+      <div id="clients-list" class="clients-list"></div>
+    </div>
+  </div>
+
+  <!-- ══════ Client Detail Panel ══════ -->
+  <div id="client-detail-panel" class="side-panel hidden">
+    <div class="panel-header">
+      <button class="icon-btn" id="btn-client-back"><i class="ri-arrow-left-s-line"></i></button>
+      <h2 id="client-detail-title">거래처 상세</h2>
+      <div style="flex:1"></div>
+      <button class="icon-btn" id="btn-edit-client" title="수정"><i class="ri-edit-line"></i></button>
+      <button class="icon-btn" id="btn-delete-client" title="삭제"><i class="ri-delete-bin-line"></i></button>
+      <button class="icon-btn" id="close-client-detail"><i class="ri-close-line"></i></button>
+    </div>
+    <div class="panel-body">
+      <div class="client-info-section">
+        <h3><i class="ri-key-2-line"></i> 경리나라 계정</h3>
+        <div class="client-credential">
+          <span class="cred-label">아이디</span>
+          <span class="cred-value" id="client-gyeongli-id">-</span>
+          <button class="icon-btn btn-copy-cred" data-target="client-gyeongli-id" title="복사"><i class="ri-file-copy-line"></i></button>
+        </div>
+        <div class="client-credential">
+          <span class="cred-label">비밀번호</span>
+          <span class="cred-value cred-masked" id="client-gyeongli-pw">••••••</span>
+          <button class="icon-btn btn-toggle-pw" data-target="client-gyeongli-pw" title="보기"><i class="ri-eye-line"></i></button>
+          <button class="icon-btn btn-copy-cred" data-target="client-gyeongli-pw" title="복사"><i class="ri-file-copy-line"></i></button>
+        </div>
+        <div class="client-memo-section">
+          <span class="cred-label">메모</span>
+          <p id="client-memo-text" class="client-memo-text">-</p>
+        </div>
+      </div>
+      <div class="client-info-section">
+        <div class="section-header">
+          <h3><i class="ri-flashlight-line"></i> 자동화 바로가기</h3>
+          <button class="btn btn-outline btn-sm" id="btn-add-shortcut"><i class="ri-add-line"></i> 추가</button>
+        </div>
+        <div id="client-shortcuts-list" class="shortcuts-list"></div>
+      </div>
+      <div class="client-info-section">
+        <h3><i class="ri-calendar-event-line"></i> 관련 일정</h3>
+        <div id="client-events-list" class="client-events-list"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="panel-overlay" class="panel-overlay hidden"></div>
+
+  <!-- ══════ Client Modal ══════ -->
+  <div id="client-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3 id="client-modal-title">거래처 추가</h3>
+        <button class="icon-btn modal-close" data-modal="client-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="client-form">
+        <div class="input-group"><i class="ri-building-2-line"></i><input type="text" id="cl-name" placeholder="거래처명" required /></div>
+        <div class="input-group"><i class="ri-user-line"></i><input type="text" id="cl-gyeongli-id" placeholder="경리나라 아이디 (선택)" /></div>
+        <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="cl-gyeongli-pw" placeholder="경리나라 비밀번호 (선택)" /></div>
+        <div class="input-group"><i class="ri-file-text-line"></i><input type="text" id="cl-memo" placeholder="메모 (선택)" /></div>
+        <input type="hidden" id="cl-edit-id" />
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="client-modal">취소</button>
+          <button type="submit" class="btn btn-primary" id="cl-submit-btn">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ══════ Shortcut Modal ══════ -->
+  <div id="shortcut-modal" class="modal hidden">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3 id="shortcut-modal-title">바로가기 추가</h3>
+        <button class="icon-btn modal-close" data-modal="shortcut-modal"><i class="ri-close-line"></i></button>
+      </div>
+      <form id="shortcut-form">
+        <div class="input-group"><i class="ri-flashlight-line"></i><input type="text" id="sc-title" placeholder="바로가기 이름" required /></div>
+        <div class="input-group"><i class="ri-link"></i><input type="url" id="sc-url" placeholder="URL (예: https://...)" required /></div>
+        <div class="input-group"><i class="ri-image-line"></i><input type="text" id="sc-icon" placeholder="아이콘 (이모지 또는 URL, 선택)" /></div>
+        <input type="hidden" id="sc-edit-id" />
+        <input type="hidden" id="sc-client-id" />
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-modal="shortcut-modal">취소</button>
+          <button type="submit" class="btn btn-primary" id="sc-submit-btn">추가</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- ══════ Lock Screen ══════ -->
   <div id="lock-screen" class="lock-screen hidden">
@@ -342,6 +453,12 @@
           <input type="checkbox" id="evt-skip-weekend" checked />
           <span>주말/공휴일이면 직전 평일로 자동 조정</span>
         </label>
+        <div class="form-row" id="evt-client-wrap" style="display:none">
+          <div class="form-col">
+            <label class="field-label">거래처</label>
+            <select id="evt-client" class="select-input"><option value="">없음</option></select>
+          </div>
+        </div>
         <div class="input-group"><i class="ri-file-text-line"></i><input type="text" id="evt-desc" placeholder="메모 (선택)" /></div>
         <label class="checkbox-label" style="margin-bottom:8px">
           <input type="checkbox" id="evt-is-task" />
@@ -409,6 +526,10 @@
         <div class="input-group"><i class="ri-user-line"></i><input type="text" id="new-user-id" placeholder="아이디" autocomplete="username" required /></div>
         <div class="input-group"><i class="ri-lock-line"></i><input type="password" id="new-user-pw" placeholder="초기 비밀번호" autocomplete="new-password" required /></div>
         <div class="input-group"><i class="ri-user-heart-line"></i><input type="text" id="new-user-name" placeholder="표시 이름" required /></div>
+        <div class="form-col">
+          <label class="field-label">소속 팀</label>
+          <select id="new-user-team" class="select-input"><option value="">없음</option></select>
+        </div>
         <div class="modal-footer"><button type="button" class="btn btn-ghost" data-modal="user-modal">취소</button><button type="submit" class="btn btn-primary">생성</button></div>
       </form>
     </div>

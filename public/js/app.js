@@ -100,8 +100,13 @@
       const urlBar = framesContainer.querySelector('#dtf-url-input');
       if (urlBar) urlBar.value = tab.url;
 
-      if (tab.hibernated) {
-        const frame = framesContainer.querySelector(`${sel}[data-dyn-id="${id}"]`);
+      const frame = framesContainer.querySelector(`${sel}[data-dyn-id="${id}"]`);
+      if (frame && frame._crashed) {
+        frame._crashed = false;
+        frame.src = tab.url;
+        const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
+        if (tabEl) tabEl.style.opacity = '';
+      } else if (tab.hibernated) {
         if (frame && frame.tagName === 'WEBVIEW') {
           frame.src = tab.url;
           tab.hibernated = false;
@@ -441,6 +446,17 @@
           console.log('[LinkFlow] Webview preload ready:', e.args[0]?.domain);
         }
       });
+      frame.addEventListener('crashed', () => {
+        console.error('[LinkFlow] Webview crashed:', id, url);
+        const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
+        if (tabEl) tabEl.style.opacity = '0.5';
+        if (typeof UI !== 'undefined') UI.showToast('페이지가 충돌했습니다. 탭을 클릭하면 새로고침합니다.', 'error');
+        frame._crashed = true;
+      });
+      frame.addEventListener('did-fail-load', (e) => {
+        if (e.errorCode === -3) return;
+        console.warn('[LinkFlow] Webview load failed:', e.errorCode, e.errorDescription, url);
+      });
     } else {
       frame = document.createElement('iframe');
       frame.dataset.dynId = id;
@@ -545,6 +561,10 @@
     const adminBtn = document.getElementById('btn-admin');
     if (Auth.isAdmin()) adminBtn.style.display = '';
     else adminBtn.style.display = 'none';
+
+    const clientsBtn = document.getElementById('btn-clients');
+    if (user.team_id) clientsBtn.style.display = '';
+    else clientsBtn.style.display = 'none';
 
     Calendar.init();
     Memos.init();
@@ -1012,31 +1032,103 @@
 
   // ═══════ Admin ═══════
 
+  let adminTeams = [];
+
   async function openAdmin() {
     UI.showPanel('admin-panel');
     try {
-      const users = await Auth.request('/admin/users');
-      renderAdminUsers(users);
+      const [users, teams] = await Promise.all([
+        Auth.request('/admin/users'),
+        Auth.request('/admin/teams'),
+      ]);
+      adminTeams = teams;
+      renderAdminTeams(teams);
+      renderAdminUsers(users, teams);
+      populateTeamSelect('new-user-team', teams);
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  function renderAdminUsers(users) {
+  function populateTeamSelect(selectId, teams) {
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = '<option value="">없음</option>' +
+      teams.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  }
+
+  function renderAdminTeams(teams) {
+    const list = document.getElementById('admin-team-list');
+    if (!teams.length) {
+      list.innerHTML = '<p class="empty-hint">등록된 팀이 없습니다</p>';
+      return;
+    }
+    list.innerHTML = teams.map(t => `
+      <div class="team-item">
+        <i class="ri-team-line"></i>
+        <span class="team-name">${escapeHtml(t.name)}</span>
+        ${t.description ? `<span class="team-desc">${escapeHtml(t.description)}</span>` : ''}
+        <div style="flex:1"></div>
+        <button class="icon-btn btn-delete-team" data-id="${t.id}" data-name="${escapeHtml(t.name)}" title="삭제"><i class="ri-delete-bin-line"></i></button>
+      </div>`).join('');
+
+    list.querySelectorAll('.btn-delete-team').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const ok = await UI.confirm('팀 삭제', `${btn.dataset.name} 팀을 삭제하시겠습니까? 소속된 사용자의 팀이 해제됩니다.`);
+        if (ok) {
+          try {
+            await Auth.request(`/admin/teams/${btn.dataset.id}`, { method: 'DELETE' });
+            UI.showToast('삭제되었습니다', 'success');
+            openAdmin();
+          } catch (err) { UI.showToast(err.message, 'error'); }
+        }
+      });
+    });
+  }
+
+  async function createTeam() {
+    const nameInput = document.getElementById('new-team-name');
+    const name = nameInput.value.trim();
+    if (!name) return UI.showToast('팀 이름을 입력하세요', 'error');
+    try {
+      await Auth.request('/admin/teams', { method: 'POST', body: JSON.stringify({ name }) });
+      nameInput.value = '';
+      UI.showToast(`${name} 팀이 생성되었습니다`, 'success');
+      openAdmin();
+    } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  function renderAdminUsers(users, teams) {
+    const teamMap = {};
+    teams.forEach(t => { teamMap[t.id] = t.name; });
     const list = document.getElementById('admin-user-list');
     list.innerHTML = users.map(u => `
       <div class="user-item">
         <div class="user-item-avatar">${(u.display_name || u.username).charAt(0).toUpperCase()}</div>
         <div class="user-item-info">
-          <div class="user-name">${escapeHtml(u.display_name)}${u.is_admin ? '<span class="admin-badge">관리자</span>' : ''}</div>
+          <div class="user-name">${escapeHtml(u.display_name)}${u.is_admin ? '<span class="admin-badge">관리자</span>' : ''}${u.team_id ? `<span class="team-badge">${escapeHtml(teamMap[u.team_id] || '')}</span>` : ''}</div>
           <div class="user-id">${escapeHtml(u.username)}</div>
         </div>
         <div class="user-item-actions">
           ${!u.is_admin ? `
+            <select class="select-input select-sm user-team-select" data-id="${u.id}" title="팀 변경">
+              <option value="">팀 없음</option>
+              ${teams.map(t => `<option value="${t.id}" ${u.team_id === t.id ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
+            </select>
             <button class="icon-btn btn-reset-pw" data-id="${u.id}" data-name="${escapeHtml(u.display_name)}" title="비밀번호 초기화"><i class="ri-key-line"></i></button>
             <button class="icon-btn btn-delete-user" data-id="${u.id}" data-name="${escapeHtml(u.display_name)}" title="삭제"><i class="ri-delete-bin-line"></i></button>
           ` : ''}
         </div>
       </div>`).join('');
 
+    list.querySelectorAll('.user-team-select').forEach(sel => {
+      sel.addEventListener('change', async () => {
+        try {
+          await Auth.request(`/admin/users/${sel.dataset.id}/team`, {
+            method: 'PATCH',
+            body: JSON.stringify({ team_id: sel.value || null }),
+          });
+          UI.showToast('팀이 변경되었습니다', 'success');
+        } catch (err) { UI.showToast(err.message, 'error'); }
+      });
+    });
     list.querySelectorAll('.btn-reset-pw').forEach(btn => {
       btn.addEventListener('click', async () => {
         const ok = await UI.confirm('비밀번호 초기화', `${btn.dataset.name}의 비밀번호를 0000으로 초기화하시겠습니까?`);
@@ -1064,17 +1156,235 @@
 
   async function createUser(e) {
     e.preventDefault();
+    const teamVal = document.getElementById('new-user-team').value;
     const data = {
       username: document.getElementById('new-user-id').value.trim(),
       password: document.getElementById('new-user-pw').value,
       display_name: document.getElementById('new-user-name').value.trim(),
     };
+    if (teamVal) data.team_id = teamVal;
     try {
       await Auth.request('/admin/users', { method: 'POST', body: JSON.stringify(data) });
       UI.showToast(`${data.display_name} 사용자가 생성되었습니다`, 'success');
       UI.closeModal('user-modal');
       document.getElementById('user-form').reset();
       openAdmin();
+    } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  // ═══════ Clients (거래처) ═══════
+
+  let clientsList = [];
+  let currentClientId = null;
+  let currentClientData = null;
+
+  async function openClientsPanel() {
+    UI.showPanel('clients-panel');
+    await loadClients();
+  }
+
+  async function loadClients() {
+    try {
+      clientsList = await Auth.request('/clients');
+      renderClientsList();
+    } catch (err) {
+      if (err.message === 'No team assigned') {
+        document.getElementById('clients-list').innerHTML = '<p class="empty-hint">소속된 팀이 없습니다</p>';
+      } else {
+        UI.showToast(err.message, 'error');
+      }
+    }
+  }
+
+  function renderClientsList() {
+    const list = document.getElementById('clients-list');
+    if (!clientsList.length) {
+      list.innerHTML = '<p class="empty-hint">등록된 거래처가 없습니다</p>';
+      return;
+    }
+    list.innerHTML = clientsList.map(c => `
+      <div class="client-card" data-id="${c.id}">
+        <div class="client-card-icon"><i class="ri-building-2-line"></i></div>
+        <div class="client-card-body">
+          <div class="client-card-name">${escapeHtml(c.name)}</div>
+          ${c.gyeongli_id ? `<div class="client-card-sub">${escapeHtml(c.gyeongli_id)}</div>` : ''}
+        </div>
+        <i class="ri-arrow-right-s-line client-card-arrow"></i>
+      </div>`).join('');
+
+    list.querySelectorAll('.client-card').forEach(card => {
+      card.addEventListener('click', () => openClientDetail(card.dataset.id));
+    });
+  }
+
+  async function openClientDetail(clientId) {
+    currentClientId = clientId;
+    try {
+      currentClientData = await Auth.request(`/clients/${clientId}`);
+      document.getElementById('client-detail-title').textContent = currentClientData.name;
+      document.getElementById('client-gyeongli-id').textContent = currentClientData.gyeongli_id || '-';
+      const pwEl = document.getElementById('client-gyeongli-pw');
+      pwEl.textContent = '••••••';
+      pwEl.classList.add('cred-masked');
+      pwEl._realValue = currentClientData.gyeongli_pw || '';
+      document.getElementById('client-memo-text').textContent = currentClientData.memo || '-';
+
+      await Promise.all([loadClientShortcuts(clientId), loadClientEvents(clientId)]);
+
+      UI.hidePanel('clients-panel');
+      UI.showPanel('client-detail-panel');
+    } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  async function loadClientShortcuts(clientId) {
+    try {
+      const shortcuts = await Auth.request(`/clients/${clientId}/shortcuts`);
+      renderClientShortcuts(shortcuts);
+    } catch { renderClientShortcuts([]); }
+  }
+
+  function renderClientShortcuts(shortcuts) {
+    const list = document.getElementById('client-shortcuts-list');
+    if (!shortcuts.length) {
+      list.innerHTML = '<p class="empty-hint">바로가기가 없습니다</p>';
+      return;
+    }
+    list.innerHTML = shortcuts.map(s => `
+      <div class="shortcut-card" data-id="${s.id}">
+        <span class="shortcut-icon">${s.icon || '🔗'}</span>
+        <a class="shortcut-link" href="${escapeHtml(s.url)}" target="_blank" title="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>
+        <button class="icon-btn btn-open-shortcut" data-url="${escapeHtml(s.url)}" title="탭에서 열기"><i class="ri-external-link-line"></i></button>
+        <button class="icon-btn btn-delete-shortcut" data-id="${s.id}" title="삭제"><i class="ri-delete-bin-line"></i></button>
+      </div>`).join('');
+
+    list.querySelectorAll('.btn-open-shortcut').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        createDynTab(btn.dataset.url);
+      });
+    });
+    list.querySelectorAll('.btn-delete-shortcut').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        const ok = await UI.confirm('바로가기 삭제', '이 바로가기를 삭제하시겠습니까?');
+        if (!ok) return;
+        try {
+          await Auth.request(`/clients/${currentClientId}/shortcuts/${btn.dataset.id}`, { method: 'DELETE' });
+          UI.showToast('삭제되었습니다', 'success');
+          loadClientShortcuts(currentClientId);
+        } catch (err) { UI.showToast(err.message, 'error'); }
+      });
+    });
+  }
+
+  async function loadClientEvents(clientId) {
+    try {
+      const events = await Auth.request(`/clients/${clientId}/events`);
+      renderClientEvents(events);
+    } catch { renderClientEvents([]); }
+  }
+
+  function renderClientEvents(events) {
+    const list = document.getElementById('client-events-list');
+    if (!events.length) {
+      list.innerHTML = '<p class="empty-hint">관련 일정이 없습니다</p>';
+      return;
+    }
+    list.innerHTML = events.slice(0, 20).map(ev => `
+      <div class="client-event-item">
+        <span class="client-event-dot" style="background:${ev.color}"></span>
+        <span class="client-event-date">${ev.start_date}</span>
+        <span class="client-event-title">${escapeHtml(ev.title)}</span>
+        ${ev.is_done ? '<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i>' : ''}
+      </div>`).join('');
+  }
+
+  function openAddClient() {
+    document.getElementById('client-modal-title').textContent = '거래처 추가';
+    document.getElementById('cl-submit-btn').textContent = '추가';
+    document.getElementById('client-form').reset();
+    document.getElementById('cl-edit-id').value = '';
+    UI.openModal('client-modal');
+  }
+
+  function openEditClient() {
+    if (!currentClientData) return;
+    document.getElementById('client-modal-title').textContent = '거래처 수정';
+    document.getElementById('cl-submit-btn').textContent = '저장';
+    document.getElementById('cl-edit-id').value = currentClientId;
+    document.getElementById('cl-name').value = currentClientData.name;
+    document.getElementById('cl-gyeongli-id').value = currentClientData.gyeongli_id || '';
+    document.getElementById('cl-gyeongli-pw').value = '';
+    document.getElementById('cl-memo').value = currentClientData.memo || '';
+    UI.openModal('client-modal');
+  }
+
+  async function saveClient(e) {
+    e.preventDefault();
+    const editId = document.getElementById('cl-edit-id').value;
+    const data = {
+      name: document.getElementById('cl-name').value.trim(),
+      gyeongli_id: document.getElementById('cl-gyeongli-id').value.trim() || null,
+      gyeongli_pw: document.getElementById('cl-gyeongli-pw').value || null,
+      memo: document.getElementById('cl-memo').value.trim() || null,
+    };
+    try {
+      if (editId) {
+        if (!data.gyeongli_pw) delete data.gyeongli_pw;
+        await Auth.request(`/clients/${editId}`, { method: 'PUT', body: JSON.stringify(data) });
+        UI.showToast('거래처가 수정되었습니다', 'success');
+        UI.closeModal('client-modal');
+        openClientDetail(editId);
+      } else {
+        await Auth.request('/clients', { method: 'POST', body: JSON.stringify(data) });
+        UI.showToast('거래처가 추가되었습니다', 'success');
+        UI.closeModal('client-modal');
+        loadClients();
+      }
+    } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  async function deleteClient() {
+    if (!currentClientId) return;
+    const ok = await UI.confirm('거래처 삭제', '이 거래처를 삭제하시겠습니까? 바로가기도 모두 삭제됩니다.');
+    if (!ok) return;
+    try {
+      await Auth.request(`/clients/${currentClientId}`, { method: 'DELETE' });
+      UI.showToast('삭제되었습니다', 'success');
+      UI.hidePanel('client-detail-panel');
+      UI.showPanel('clients-panel');
+      loadClients();
+    } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  function openAddShortcut() {
+    document.getElementById('shortcut-modal-title').textContent = '바로가기 추가';
+    document.getElementById('sc-submit-btn').textContent = '추가';
+    document.getElementById('shortcut-form').reset();
+    document.getElementById('sc-edit-id').value = '';
+    document.getElementById('sc-client-id').value = currentClientId;
+    UI.openModal('shortcut-modal');
+  }
+
+  async function saveShortcut(e) {
+    e.preventDefault();
+    const clientId = document.getElementById('sc-client-id').value;
+    const editId = document.getElementById('sc-edit-id').value;
+    const data = {
+      title: document.getElementById('sc-title').value.trim(),
+      url: document.getElementById('sc-url').value.trim(),
+      icon: document.getElementById('sc-icon').value.trim() || '',
+    };
+    try {
+      if (editId) {
+        await Auth.request(`/clients/${clientId}/shortcuts/${editId}`, { method: 'PUT', body: JSON.stringify(data) });
+        UI.showToast('바로가기가 수정되었습니다', 'success');
+      } else {
+        await Auth.request(`/clients/${clientId}/shortcuts`, { method: 'POST', body: JSON.stringify(data) });
+        UI.showToast('바로가기가 추가되었습니다', 'success');
+      }
+      UI.closeModal('shortcut-modal');
+      loadClientShortcuts(clientId);
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
@@ -1872,17 +2182,58 @@
     document.getElementById('btn-empty-add')?.addEventListener('click', openAddBookmark);
     document.getElementById('btn-settings').addEventListener('click', openSettings);
     document.getElementById('btn-admin').addEventListener('click', openAdmin);
+    document.getElementById('btn-clients').addEventListener('click', openClientsPanel);
 
     // Panels
     document.getElementById('close-settings').addEventListener('click', () => UI.hidePanel('settings-panel'));
     document.getElementById('close-admin').addEventListener('click', () => UI.hidePanel('admin-panel'));
+    document.getElementById('close-clients').addEventListener('click', () => UI.hidePanel('clients-panel'));
+    document.getElementById('close-client-detail').addEventListener('click', () => UI.hidePanel('client-detail-panel'));
+    document.getElementById('btn-client-back').addEventListener('click', () => {
+      UI.hidePanel('client-detail-panel');
+      UI.showPanel('clients-panel');
+    });
     document.getElementById('panel-overlay').addEventListener('click', UI.hideAllPanels);
 
     // Settings
     document.getElementById('btn-save-profile').addEventListener('click', saveProfile);
     document.getElementById('btn-save-lock').addEventListener('click', saveLockSettings);
     document.getElementById('btn-add-category').addEventListener('click', openAddCategory);
-    document.getElementById('btn-create-user').addEventListener('click', () => UI.openModal('user-modal'));
+    document.getElementById('btn-create-user').addEventListener('click', () => {
+      if (adminTeams.length) populateTeamSelect('new-user-team', adminTeams);
+      UI.openModal('user-modal');
+    });
+    document.getElementById('btn-create-team').addEventListener('click', createTeam);
+
+    // Clients
+    document.getElementById('btn-add-client').addEventListener('click', openAddClient);
+    document.getElementById('client-form').addEventListener('submit', saveClient);
+    document.getElementById('btn-edit-client').addEventListener('click', openEditClient);
+    document.getElementById('btn-delete-client').addEventListener('click', deleteClient);
+    document.getElementById('btn-add-shortcut').addEventListener('click', openAddShortcut);
+    document.getElementById('shortcut-form').addEventListener('submit', saveShortcut);
+
+    document.querySelectorAll('.btn-copy-cred').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = document.getElementById(btn.dataset.target);
+        const text = el._realValue || el.textContent;
+        navigator.clipboard.writeText(text).then(() => UI.showToast('복사되었습니다', 'success'));
+      });
+    });
+    document.querySelectorAll('.btn-toggle-pw').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = document.getElementById(btn.dataset.target);
+        if (el.classList.contains('cred-masked')) {
+          el.textContent = el._realValue || '';
+          el.classList.remove('cred-masked');
+          btn.querySelector('i').className = 'ri-eye-off-line';
+        } else {
+          el.textContent = '••••••';
+          el.classList.add('cred-masked');
+          btn.querySelector('i').className = 'ri-eye-line';
+        }
+      });
+    });
     document.getElementById('btn-change-pw').addEventListener('click', () => {
       document.getElementById('user-dropdown').classList.add('hidden');
       document.getElementById('pw-form').reset();

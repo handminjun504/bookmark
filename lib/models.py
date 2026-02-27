@@ -57,6 +57,7 @@ class UserCreate(BaseModel):
     username: str
     password: str
     display_name: str
+    team_id: Optional[str] = None
 
 
 class SettingsUpdate(BaseModel):
@@ -91,6 +92,7 @@ class EventCreate(BaseModel):
     recurrence_day: Optional[int] = None
     is_task: bool = False
     skip_weekend: bool = False
+    client_id: Optional[str] = None
 
 
 class EventUpdate(BaseModel):
@@ -107,6 +109,7 @@ class EventUpdate(BaseModel):
     recurrence_day: Optional[int] = None
     is_task: Optional[bool] = None
     skip_weekend: Optional[bool] = None
+    client_id: Optional[str] = None
 
 
 class MemoCreate(BaseModel):
@@ -120,3 +123,41 @@ class MemoUpdate(BaseModel):
     content: Optional[str] = None
     color: Optional[str] = None
     is_pinned: Optional[bool] = None
+
+
+class TeamCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ClientCreate(BaseModel):
+    name: str
+    gyeongli_id: Optional[str] = None
+    gyeongli_pw: Optional[str] = None
+    memo: Optional[str] = None
+
+
+class ClientUpdate(BaseModel):
+    name: Optional[str] = None
+    gyeongli_id: Optional[str] = None
+    gyeongli_pw: Optional[str] = None
+    memo: Optional[str] = None
+
+
+class ShortcutCreate(BaseModel):
+    title: str
+    url: str
+    icon: str = ""
+    sort_order: int = 0
+
+
+class ShortcutUpdate(BaseModel):
+    title: Optional[str] = None
+    url: Optional[str] = None
+    icon: Optional[str] = None
+    sort_order: Optional[int] = None

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LinkFlow UI Kit - Demo</title>
+  <link rel="stylesheet" href="css/linkflow-ui.css">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@4/fonts/remixicon.css" rel="stylesheet">
+  <style>
+    body { font-family: 'Pretendard', -apple-system, sans-serif; margin: 0; background: #F0F6FA; }
+    .demo-section { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+    .demo-section h2 { margin-bottom: 16px; font-size: 20px; color: #2C3E50; border-bottom: 2px solid #4DA8DA; padding-bottom: 8px; }
+    .demo-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-bottom: 24px; }
+    .demo-box { background: #fff; border-radius: 12px; padding: 24px; border: 1px solid #E8EDF1; margin-bottom: 16px; }
+    .demo-label { font-size: 12px; color: #7F8C8D; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; }
+    pre { background: #2C3E50; color: #ECF0F1; padding: 16px; border-radius: 8px; font-size: 13px; overflow-x: auto; margin-top: 8px; }
+    code { font-family: 'Fira Code', monospace; }
+    .demo-hero { background: linear-gradient(135deg, #87CEEB 0%, #4DA8DA 50%, #2E86C1 100%); padding: 60px 24px; text-align: center; color: #fff; }
+    .demo-hero h1 { font-size: 36px; margin-bottom: 8px; }
+    .demo-hero p { font-size: 16px; opacity: 0.9; }
+  </style>
+</head>
+<body class="lf">
+
+<div class="demo-hero">
+  <h1><i class="ri-link-m"></i> LinkFlow UI Kit</h1>
+  <p>다른 프로젝트에서 재사용 가능한 디자인 시스템</p>
+</div>
+
+<div class="demo-section">
+
+  <!-- 사용법 -->
+  <h2>사용법</h2>
+  <div class="demo-box">
+    <pre><code>&lt;!-- 1. CSS 파일 연결 --&gt;
+&lt;link rel="stylesheet" href="linkflow-ui.css"&gt;
+
+&lt;!-- 2. 아이콘 (Remix Icon) --&gt;
+&lt;link href="https://cdn.jsdelivr.net/npm/remixicon@4/fonts/remixicon.css" rel="stylesheet"&gt;
+
+&lt;!-- 3. 루트에 .lf 클래스 추가 --&gt;
+&lt;body class="lf"&gt;
+  ...
+&lt;/body&gt;</code></pre>
+  </div>
+
+  <!-- 버튼 -->
+  <h2>Buttons</h2>
+  <div class="demo-box">
+    <div class="demo-label">기본 버튼</div>
+    <div class="demo-row">
+      <button class="lf-btn lf-btn-primary">Primary</button>
+      <button class="lf-btn lf-btn-accent">Accent</button>
+      <button class="lf-btn lf-btn-outline">Outline</button>
+      <button class="lf-btn lf-btn-ghost">Ghost</button>
+      <button class="lf-btn lf-btn-danger">Danger</button>
+      <button class="lf-btn lf-btn-success">Success</button>
+    </div>
+    <div class="demo-label">크기 변형</div>
+    <div class="demo-row">
+      <button class="lf-btn lf-btn-primary lf-btn-sm">Small</button>
+      <button class="lf-btn lf-btn-primary">Default</button>
+      <button class="lf-btn lf-btn-primary lf-btn-lg">Large</button>
+      <button class="lf-btn lf-btn-primary lf-btn-full">Full Width</button>
+    </div>
+    <div class="demo-label">아이콘 버튼</div>
+    <div class="demo-row">
+      <button class="lf-icon-btn"><i class="ri-settings-3-line"></i></button>
+      <button class="lf-icon-btn"><i class="ri-add-line"></i></button>
+      <button class="lf-icon-btn"><i class="ri-delete-bin-line"></i></button>
+      <button class="lf-icon-btn lf-icon-btn-sm"><i class="ri-edit-line"></i></button>
+    </div>
+    <pre><code>&lt;button class="lf-btn lf-btn-primary"&gt;Primary&lt;/button&gt;
+&lt;button class="lf-btn lf-btn-outline lf-btn-sm"&gt;Small Outline&lt;/button&gt;
+&lt;button class="lf-icon-btn"&gt;&lt;i class="ri-settings-3-line"&gt;&lt;/i&gt;&lt;/button&gt;</code></pre>
+  </div>
+
+  <!-- 폼 -->
+  <h2>Form Elements</h2>
+  <div class="demo-box" style="max-width:400px">
+    <div class="lf-input-group">
+      <i class="ri-user-line"></i>
+      <input type="text" placeholder="아이콘 포함 입력">
+    </div>
+    <div class="lf-input-group">
+      <i class="ri-lock-line"></i>
+      <input type="password" placeholder="비밀번호">
+    </div>
+    <label class="lf-label">일반 입력</label>
+    <input class="lf-input" placeholder="이름을 입력하세요" style="margin-bottom:12px">
+    <label class="lf-label">셀렉트</label>
+    <select class="lf-select" style="margin-bottom:12px">
+      <option>옵션 1</option>
+      <option>옵션 2</option>
+      <option>옵션 3</option>
+    </select>
+    <label class="lf-label">텍스트 영역</label>
+    <textarea class="lf-textarea" placeholder="내용을 입력하세요"></textarea>
+    <label class="lf-checkbox" style="margin-top:12px">
+      <input type="checkbox" checked>
+      <span>체크박스 옵션</span>
+    </label>
+    <pre><code>&lt;div class="lf-input-group"&gt;
+  &lt;i class="ri-user-line"&gt;&lt;/i&gt;
+  &lt;input type="text" placeholder="아이콘 입력"&gt;
+&lt;/div&gt;
+&lt;input class="lf-input" placeholder="일반 입력"&gt;
+&lt;select class="lf-select"&gt;...&lt;/select&gt;</code></pre>
+  </div>
+
+  <!-- 토글 -->
+  <h2>Toggle Switch</h2>
+  <div class="demo-box" style="max-width:300px">
+    <label class="lf-toggle">
+      <span>자동 저장</span>
+      <input type="checkbox" class="lf-toggle-input" checked>
+      <div class="lf-toggle-slider"></div>
+    </label>
+    <label class="lf-toggle">
+      <span>알림 받기</span>
+      <input type="checkbox" class="lf-toggle-input">
+      <div class="lf-toggle-slider"></div>
+    </label>
+    <pre><code>&lt;label class="lf-toggle"&gt;
+  &lt;span&gt;자동 저장&lt;/span&gt;
+  &lt;input type="checkbox" class="lf-toggle-input" checked&gt;
+  &lt;div class="lf-toggle-slider"&gt;&lt;/div&gt;
+&lt;/label&gt;</code></pre>
+  </div>
+
+  <!-- 카드 -->
+  <h2>Cards</h2>
+  <div class="lf-grid lf-grid-auto" style="padding:0; margin-bottom:24px">
+    <div class="lf-card lf-card-hover lf-card-clickable">
+      <div class="lf-card-header">
+        <div class="lf-card-icon lf-card-icon-blue"><i class="ri-global-line"></i></div>
+        <div class="lf-card-body">
+          <div class="lf-card-title truncate">프로젝트 대시보드</div>
+          <div class="lf-card-desc">관리 시스템</div>
+        </div>
+      </div>
+      <div class="lf-card-footer">
+        <span class="text-xs text-light">웹사이트</span>
+        <span class="lf-status-dot lf-status-online"></span>
+      </div>
+    </div>
+    <div class="lf-card lf-card-hover lf-card-clickable">
+      <div class="lf-card-header">
+        <div class="lf-card-icon lf-card-icon-green"><i class="ri-file-excel-line"></i></div>
+        <div class="lf-card-body">
+          <div class="lf-card-title truncate">매출 데이터 시트</div>
+          <div class="lf-card-desc">2026년 1분기</div>
+        </div>
+      </div>
+      <div class="lf-card-footer">
+        <span class="text-xs text-light">구글시트</span>
+        <span class="lf-status-dot lf-status-online"></span>
+      </div>
+    </div>
+    <div class="lf-card lf-card-hover lf-card-clickable">
+      <div class="lf-card-header">
+        <div class="lf-card-icon lf-card-icon-purple"><i class="ri-code-s-slash-line"></i></div>
+        <div class="lf-card-body">
+          <div class="lf-card-title truncate">API 서버</div>
+          <div class="lf-card-desc">Production v2.1</div>
+        </div>
+      </div>
+      <div class="lf-card-footer">
+        <span class="text-xs text-light">서버</span>
+        <span class="lf-status-dot lf-status-offline"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 배지 & 태그 -->
+  <h2>Badges & Tags</h2>
+  <div class="demo-box">
+    <div class="demo-label">배지</div>
+    <div class="demo-row">
+      <span class="lf-badge lf-badge-primary">Primary</span>
+      <span class="lf-badge lf-badge-success"><i class="ri-check-line"></i> 완료</span>
+      <span class="lf-badge lf-badge-danger">오류</span>
+      <span class="lf-badge lf-badge-warning">주의</span>
+      <span class="lf-badge lf-badge-muted">비활성</span>
+    </div>
+    <div class="demo-label">상태 점</div>
+    <div class="demo-row">
+      <span class="lf-status-dot lf-status-online"></span> 온라인
+      <span class="lf-status-dot lf-status-offline"></span> 오프라인
+      <span class="lf-status-dot lf-status-warning"></span> 경고
+    </div>
+    <div class="demo-label">태그 (필터/카테고리)</div>
+    <div class="demo-row">
+      <button class="lf-tag active"><i class="ri-apps-line"></i> 전체</button>
+      <button class="lf-tag">웹사이트</button>
+      <button class="lf-tag">구글시트</button>
+      <button class="lf-tag">서버</button>
+    </div>
+  </div>
+
+  <!-- 검색 -->
+  <h2>Search</h2>
+  <div class="demo-box" style="max-width:480px">
+    <div class="lf-search">
+      <i class="ri-search-line"></i>
+      <input type="text" placeholder="검색...">
+    </div>
+  </div>
+
+  <!-- 리스트 -->
+  <h2>List Items</h2>
+  <div class="demo-box" style="max-width:400px">
+    <div class="lf-list">
+      <div class="lf-list-item">
+        <div class="lf-avatar">김</div>
+        <div class="lf-list-item-body">
+          <div class="lf-list-item-title">김민수 <span class="lf-badge lf-badge-primary" style="font-size:10px;margin-left:4px">관리자</span></div>
+          <div class="lf-list-item-sub">admin@company.com</div>
+        </div>
+        <div class="lf-list-item-actions">
+          <button class="lf-icon-btn lf-icon-btn-sm"><i class="ri-edit-line"></i></button>
+        </div>
+      </div>
+      <div class="lf-list-item">
+        <div class="lf-avatar">이</div>
+        <div class="lf-list-item-body">
+          <div class="lf-list-item-title">이영희</div>
+          <div class="lf-list-item-sub">user@company.com</div>
+        </div>
+        <div class="lf-list-item-actions">
+          <button class="lf-icon-btn lf-icon-btn-sm"><i class="ri-edit-line"></i></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 색상 팔레트 -->
+  <h2>Color Palette</h2>
+  <div class="demo-box">
+    <div class="demo-row">
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#4DA8DA;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Primary</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#87CEEB;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Light</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#3B8BBE;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Dark</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#2E86C1;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Accent</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#27AE60;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Success</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#E74C3C;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Danger</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#F39C12;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Warning</span>
+      </div>
+      <div style="text-align:center">
+        <div style="width:60px;height:60px;background:#2C3E50;border-radius:12px;margin-bottom:4px"></div>
+        <span class="text-xs">Text</span>
+      </div>
+    </div>
+    <pre><code>/* CSS 변수로 커스터마이징 */
+:root {
+  --lf-primary: #4DA8DA;      /* 메인 색상 변경 */
+  --lf-primary-light: #87CEEB;
+  --lf-primary-dark: #3B8BBE;
+  --lf-radius: 12px;           /* 둥글기 조정 */
+}</code></pre>
+  </div>
+
+  <!-- 로딩 -->
+  <h2>Loading</h2>
+  <div class="demo-box">
+    <div class="demo-row">
+      <div class="lf-spinner"></div>
+      <div style="margin-left:24px">
+        <div class="lf-skeleton" style="width:200px;height:16px;margin-bottom:8px"></div>
+        <div class="lf-skeleton" style="width:140px;height:12px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 빈 상태 -->
+  <h2>Empty State</h2>
+  <div class="demo-box">
+    <div class="lf-empty">
+      <i class="ri-inbox-line"></i>
+      <p>데이터가 없습니다</p>
+      <button class="lf-btn lf-btn-primary"><i class="ri-add-line"></i> 새로 만들기</button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

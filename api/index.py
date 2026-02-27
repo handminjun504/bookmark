@@ -36,6 +36,12 @@ from lib.models import (
     EventUpdate,
     MemoCreate,
     MemoUpdate,
+    TeamCreate,
+    TeamUpdate,
+    ClientCreate,
+    ClientUpdate,
+    ShortcutCreate,
+    ShortcutUpdate,
 )
 
 app = FastAPI()
@@ -135,6 +141,7 @@ async def login(req: LoginRequest):
             "lock_enabled": user["lock_enabled"],
             "lock_timeout": user["lock_timeout"],
             "pin_code": user["pin_code"],
+            "team_id": user.get("team_id"),
         },
     }
 
@@ -184,6 +191,7 @@ async def auto_login(req: AutoLoginRequest):
             "lock_enabled": user["lock_enabled"],
             "lock_timeout": user["lock_timeout"],
             "pin_code": user["pin_code"],
+            "team_id": user.get("team_id"),
         },
     }
 
@@ -506,7 +514,7 @@ async def list_users(admin=Depends(get_admin_user)):
     db = get_supabase()
     result = (
         db.table("users")
-        .select("id, username, display_name, is_admin, created_at")
+        .select("id, username, display_name, is_admin, team_id, created_at")
         .order("created_at")
         .execute()
     )
@@ -520,18 +528,21 @@ async def create_user(req: UserCreate, admin=Depends(get_admin_user)):
     if existing.data:
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    result = (
-        db.table("users")
-        .insert(
-            {
-                "username": req.username,
-                "password_hash": hash_password(req.password),
-                "display_name": req.display_name,
-            }
-        )
-        .execute()
-    )
-    return {"id": result.data[0]["id"], "username": req.username, "display_name": req.display_name}
+    data = {
+        "username": req.username,
+        "password_hash": hash_password(req.password),
+        "display_name": req.display_name,
+    }
+    if req.team_id:
+        data["team_id"] = req.team_id
+
+    result = db.table("users").insert(data).execute()
+    return {
+        "id": result.data[0]["id"],
+        "username": req.username,
+        "display_name": req.display_name,
+        "team_id": result.data[0].get("team_id"),
+    }
 
 
 @app.delete("/api/admin/users/{user_id}")
@@ -690,6 +701,7 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         "recurrence_day": req.recurrence_day,
         "is_task": req.is_task,
         "skip_weekend": req.skip_weekend,
+        "client_id": req.client_id,
     }
     result = db.table("events").insert(data).execute()
     return result.data[0]
@@ -775,6 +787,282 @@ async def get_week_tasks(date_str: str = None, user=Depends(get_current_user)):
         .execute()
     )
     return result.data
+
+
+# ── Teams (Admin) ──
+
+
+@app.get("/api/admin/teams")
+async def list_teams(admin=Depends(get_admin_user)):
+    db = get_supabase()
+    result = db.table("teams").select("*").order("created_at").execute()
+    return result.data
+
+
+@app.post("/api/admin/teams")
+async def create_team(req: TeamCreate, admin=Depends(get_admin_user)):
+    db = get_supabase()
+    data = {"name": req.name}
+    if req.description:
+        data["description"] = req.description
+    result = db.table("teams").insert(data).execute()
+    return result.data[0]
+
+
+@app.put("/api/admin/teams/{team_id}")
+async def update_team(team_id: str, req: TeamUpdate, admin=Depends(get_admin_user)):
+    db = get_supabase()
+    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    result = db.table("teams").update(data).eq("id", team_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return result.data[0]
+
+
+@app.delete("/api/admin/teams/{team_id}")
+async def delete_team(team_id: str, admin=Depends(get_admin_user)):
+    db = get_supabase()
+    result = db.table("teams").delete().eq("id", team_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return {"message": "Deleted"}
+
+
+@app.patch("/api/admin/users/{user_id}/team")
+async def assign_user_team(user_id: str, req: dict, admin=Depends(get_admin_user)):
+    db = get_supabase()
+    team_id = req.get("team_id")
+    db.table("users").update({"team_id": team_id}).eq("id", user_id).execute()
+    return {"message": "Team assigned"}
+
+
+# ── Clients (거래처) ──
+
+
+def _get_fernet():
+    from cryptography.fernet import Fernet
+    import base64, hashlib
+    key = os.getenv("ENCRYPTION_KEY")
+    if not key:
+        jwt_secret = os.getenv("JWT_SECRET", "linkflow-default-secret")
+        derived = hashlib.sha256(jwt_secret.encode()).digest()
+        key = base64.urlsafe_b64encode(derived).decode()
+    return Fernet(key.encode() if isinstance(key, str) else key)
+
+
+def _encrypt(text: str) -> str:
+    if not text:
+        return ""
+    return _get_fernet().encrypt(text.encode()).decode()
+
+
+def _decrypt(token: str) -> str:
+    if not token:
+        return ""
+    try:
+        return _get_fernet().decrypt(token.encode()).decode()
+    except Exception:
+        return ""
+
+
+def _get_user_team_id(user) -> str:
+    db = get_supabase()
+    u = db.table("users").select("team_id").eq("id", user["sub"]).execute()
+    if not u.data or not u.data[0].get("team_id"):
+        raise HTTPException(status_code=403, detail="No team assigned")
+    return u.data[0]["team_id"]
+
+
+@app.get("/api/clients")
+async def list_clients(user=Depends(get_current_user)):
+    team_id = _get_user_team_id(user)
+    db = get_supabase()
+    result = (
+        db.table("clients")
+        .select("id, name, gyeongli_id, memo, created_at")
+        .eq("team_id", team_id)
+        .order("name")
+        .execute()
+    )
+    return result.data
+
+
+@app.get("/api/clients/{client_id}")
+async def get_client(client_id: str, user=Depends(get_current_user)):
+    team_id = _get_user_team_id(user)
+    db = get_supabase()
+    result = (
+        db.table("clients")
+        .select("*")
+        .eq("id", client_id)
+        .eq("team_id", team_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    client = result.data[0]
+    client["gyeongli_pw"] = _decrypt(client.get("gyeongli_pw_encrypted") or "")
+    client.pop("gyeongli_pw_encrypted", None)
+    return client
+
+
+@app.post("/api/clients")
+async def create_client(req: ClientCreate, user=Depends(get_current_user)):
+    team_id = _get_user_team_id(user)
+    db = get_supabase()
+    data = {
+        "team_id": team_id,
+        "name": req.name,
+        "gyeongli_id": req.gyeongli_id or "",
+        "gyeongli_pw_encrypted": _encrypt(req.gyeongli_pw or ""),
+        "memo": req.memo or "",
+        "created_by": user["sub"],
+    }
+    result = db.table("clients").insert(data).execute()
+    row = result.data[0]
+    row.pop("gyeongli_pw_encrypted", None)
+    return row
+
+
+@app.put("/api/clients/{client_id}")
+async def update_client(
+    client_id: str, req: ClientUpdate, user=Depends(get_current_user)
+):
+    team_id = _get_user_team_id(user)
+    db = get_supabase()
+    data = {}
+    if req.name is not None:
+        data["name"] = req.name
+    if req.gyeongli_id is not None:
+        data["gyeongli_id"] = req.gyeongli_id
+    if req.gyeongli_pw is not None:
+        data["gyeongli_pw_encrypted"] = _encrypt(req.gyeongli_pw)
+    if req.memo is not None:
+        data["memo"] = req.memo
+    if not data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    result = (
+        db.table("clients")
+        .update(data)
+        .eq("id", client_id)
+        .eq("team_id", team_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    row = result.data[0]
+    row.pop("gyeongli_pw_encrypted", None)
+    return row
+
+
+@app.delete("/api/clients/{client_id}")
+async def delete_client(client_id: str, user=Depends(get_current_user)):
+    team_id = _get_user_team_id(user)
+    db = get_supabase()
+    result = (
+        db.table("clients")
+        .delete()
+        .eq("id", client_id)
+        .eq("team_id", team_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return {"message": "Deleted"}
+
+
+@app.get("/api/clients/{client_id}/events")
+async def get_client_events(client_id: str, user=Depends(get_current_user)):
+    _get_user_team_id(user)
+    db = get_supabase()
+    result = (
+        db.table("events")
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("user_id", user["sub"])
+        .order("start_date", desc=True)
+        .execute()
+    )
+    return result.data
+
+
+# ── Client Shortcuts ──
+
+
+@app.get("/api/clients/{client_id}/shortcuts")
+async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
+    _get_user_team_id(user)
+    db = get_supabase()
+    result = (
+        db.table("client_shortcuts")
+        .select("*")
+        .eq("client_id", client_id)
+        .order("sort_order")
+        .execute()
+    )
+    return result.data
+
+
+@app.post("/api/clients/{client_id}/shortcuts")
+async def create_shortcut(
+    client_id: str, req: ShortcutCreate, user=Depends(get_current_user)
+):
+    _get_user_team_id(user)
+    db = get_supabase()
+    data = {
+        "client_id": client_id,
+        "title": req.title,
+        "url": req.url,
+        "icon": req.icon,
+        "sort_order": req.sort_order,
+    }
+    result = db.table("client_shortcuts").insert(data).execute()
+    return result.data[0]
+
+
+@app.put("/api/clients/{client_id}/shortcuts/{shortcut_id}")
+async def update_shortcut(
+    client_id: str,
+    shortcut_id: str,
+    req: ShortcutUpdate,
+    user=Depends(get_current_user),
+):
+    _get_user_team_id(user)
+    db = get_supabase()
+    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    if not data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    result = (
+        db.table("client_shortcuts")
+        .update(data)
+        .eq("id", shortcut_id)
+        .eq("client_id", client_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Shortcut not found")
+    return result.data[0]
+
+
+@app.delete("/api/clients/{client_id}/shortcuts/{shortcut_id}")
+async def delete_shortcut(
+    client_id: str, shortcut_id: str, user=Depends(get_current_user)
+):
+    _get_user_team_id(user)
+    db = get_supabase()
+    result = (
+        db.table("client_shortcuts")
+        .delete()
+        .eq("id", shortcut_id)
+        .eq("client_id", client_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Shortcut not found")
+    return {"message": "Deleted"}
 
 
 # ── Memos ──

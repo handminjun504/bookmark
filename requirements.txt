@@ -6,3 +6,4 @@ httpx>=0.28.0
 pydantic>=2.10.0
 python-dateutil>=2.9.0
 holidayskr
+cryptography>=44.0.0

@@ -44,6 +44,7 @@ const Calendar = (() => {
     });
 
     requestNotificationPermission();
+    loadClientOptions();
   }
 
   async function loadHolidays(year) {
@@ -74,13 +75,26 @@ const Calendar = (() => {
     load();
   }
 
-  async function load() {
+  async function load(retryCount = 0) {
     document.getElementById('cal-month-title').textContent =
       `${currentYear}년 ${currentMonth + 1}월`;
 
     try {
+      if (!Auth.isLoggedIn()) {
+        events = [];
+        render();
+        return;
+      }
       events = await Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}`);
-    } catch {
+    } catch (err) {
+      console.error('[Calendar] 일정 로드 실패:', err.message);
+      if (err.message !== 'Session expired' && retryCount < 2) {
+        await new Promise(r => setTimeout(r, 1000));
+        return load(retryCount + 1);
+      }
+      if (err.message !== 'Session expired' && typeof UI !== 'undefined') {
+        UI.showToast('일정을 불러오지 못했습니다', 'error');
+      }
       events = [];
     }
     await loadHolidays(currentYear);
@@ -130,8 +144,10 @@ const Calendar = (() => {
           const time = ev.start_time ? ev.start_time.substring(0, 5) + ' ' : '';
           const recurIcon = ev._recurring || ev.recurrence_type ? '<i class="ri-repeat-line" style="font-size:9px;margin-right:2px"></i>' : '';
           const taskIcon = ev.is_task ? '<i class="ri-checkbox-circle-line" style="font-size:9px;margin-right:2px"></i>' : '';
+          const clientName = getClientName(ev.client_id);
+          const clientTag = clientName ? `<span class="cal-client-tag">${escapeHtml(clientName)}</span> ` : '';
           const doneClass = ev.is_done ? ' cal-event-done' : '';
-          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color}" data-id="${ev.id}" title="${time}${ev.title}">${recurIcon}${taskIcon}${time}${escapeHtml(ev.title)}</div>`;
+          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color}" data-id="${ev.id}" title="${time}${clientName ? '['+clientName+'] ' : ''}${ev.title}">${recurIcon}${taskIcon}${clientTag}${time}${escapeHtml(ev.title)}</div>`;
         });
         if (dayEvents.length > 3) {
           html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
@@ -158,10 +174,12 @@ const Calendar = (() => {
   // ── Task Sidebar ──
 
   async function loadWeekTasks() {
+    if (!Auth.isLoggedIn()) { weekTasks = []; renderTaskSidebar(); return; }
     try {
       const today = new Date().toISOString().split('T')[0];
       weekTasks = await Auth.request(`/events/week?date_str=${today}`);
-    } catch {
+    } catch (err) {
+      console.error('[Calendar] 주간 작업 로드 실패:', err.message);
       weekTasks = [];
     }
     renderTaskSidebar();
@@ -228,6 +246,34 @@ const Calendar = (() => {
 
   // ── Event Modal ──
 
+  let calClientOptions = [];
+
+  async function loadClientOptions() {
+    const user = Auth.getUser();
+    const wrap = document.getElementById('evt-client-wrap');
+    if (!user || !user.team_id) {
+      wrap.style.display = 'none';
+      calClientOptions = [];
+      return;
+    }
+    try {
+      calClientOptions = await Auth.request('/clients');
+      const sel = document.getElementById('evt-client');
+      sel.innerHTML = '<option value="">없음</option>' +
+        calClientOptions.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+      wrap.style.display = '';
+    } catch {
+      wrap.style.display = 'none';
+      calClientOptions = [];
+    }
+  }
+
+  function getClientName(clientId) {
+    if (!clientId) return '';
+    const c = calClientOptions.find(x => x.id === clientId);
+    return c ? c.name : '';
+  }
+
   function openAddEvent(dateStr) {
     document.getElementById('event-modal-title').textContent = '일정 추가';
     document.getElementById('evt-submit-btn').textContent = '추가';
@@ -241,6 +287,7 @@ const Calendar = (() => {
     document.getElementById('evt-skip-weekend-wrap').style.display = 'none';
     document.getElementById('evt-skip-weekend').checked = true;
     document.getElementById('evt-recurrence-day').value = '';
+    document.getElementById('evt-client').value = '';
     resetColorPicker('evt-color-picker', '#4DA8DA');
     UI.openModal('event-modal');
   }
@@ -269,6 +316,7 @@ const Calendar = (() => {
     document.getElementById('evt-skip-weekend').checked = ev.skip_weekend || false;
     document.getElementById('evt-is-task').checked = ev.is_task || false;
     document.getElementById('evt-color').value = ev.color || '#4DA8DA';
+    document.getElementById('evt-client').value = ev.client_id || '';
     resetColorPicker('evt-color-picker', ev.color || '#4DA8DA');
     UI.openModal('event-modal');
   }
@@ -302,6 +350,7 @@ const Calendar = (() => {
       }
     }
 
+    const clientVal = document.getElementById('evt-client').value;
     const data = {
       title: document.getElementById('evt-title').value.trim(),
       start_date: startDate,
@@ -316,6 +365,7 @@ const Calendar = (() => {
       recurrence_day: recurrenceDay,
       is_task: document.getElementById('evt-is-task').checked,
       skip_weekend: recurrence ? document.getElementById('evt-skip-weekend').checked : false,
+      client_id: clientVal || null,
     };
 
     try {
@@ -388,5 +438,5 @@ const Calendar = (() => {
     return d.innerHTML;
   }
 
-  return { init, load, openAddEvent };
+  return { init, load, openAddEvent, loadClientOptions, getClientName };
 })();
