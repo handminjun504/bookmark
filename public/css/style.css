@@ -2063,13 +2063,37 @@ body {
 .dtf-frame-wrap.split-active {
   display: grid !important;
   grid-template-columns: 1fr 4px 1fr;
+  grid-template-rows: 1fr;
 }
 .dtf-frame-wrap.split-active webview.split-left,
-.dtf-frame-wrap.split-active iframe.split-left { grid-column: 1; display: flex; }
+.dtf-frame-wrap.split-active iframe.split-left {
+  grid-column: 1;
+  grid-row: 1;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0;
+  min-height: 0;
+}
 .dtf-frame-wrap.split-active webview.split-right,
-.dtf-frame-wrap.split-active iframe.split-right { grid-column: 3; display: flex; }
+.dtf-frame-wrap.split-active iframe.split-right {
+  grid-column: 3;
+  grid-row: 1;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0;
+  min-height: 0;
+}
+.dtf-frame-wrap.split-active webview:not(.split-left):not(.split-right),
+.dtf-frame-wrap.split-active iframe:not(.split-left):not(.split-right) {
+  display: none !important;
+}
 .split-resizer {
-  grid-column: 2; cursor: col-resize; background: var(--border);
+  grid-column: 2;
+  grid-row: 1;
+  cursor: col-resize;
+  background: var(--border);
   transition: background 0.2s;
 }
 .split-resizer:hover { background: var(--primary); }

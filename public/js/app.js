@@ -1442,12 +1442,16 @@
     if (splitMode) {
       splitMode = null;
       wrap.classList.remove('split-active');
+      wrap.style.gridTemplateColumns = '';
       wrap.querySelectorAll('webview, iframe').forEach(f => {
         f.classList.remove('split-left', 'split-right');
         if (f.dataset.dynId !== String(activeDynTabId)) f.classList.remove('active');
       });
       const resizer = wrap.querySelector('.split-resizer');
-      if (resizer) resizer.remove();
+      if (resizer) {
+        if (resizer._cleanup) resizer._cleanup();
+        resizer.remove();
+      }
     } else {
       if (dynTabs.length < 2) { UI.showToast('분할하려면 탭이 2개 이상 필요합니다', 'info'); return; }
       const leftId = activeDynTabId;
@@ -1466,14 +1470,20 @@
       resizer.className = 'split-resizer';
       wrap.appendChild(resizer);
       let dragging = false;
-      resizer.addEventListener('mousedown', () => { dragging = true; });
-      document.addEventListener('mousemove', (e) => {
+      const onMove = (e) => {
         if (!dragging) return;
         const rect = wrap.getBoundingClientRect();
         const pct = ((e.clientX - rect.left) / rect.width) * 100;
         wrap.style.gridTemplateColumns = `${Math.max(20, Math.min(80, pct))}% 4px 1fr`;
-      });
-      document.addEventListener('mouseup', () => { dragging = false; });
+      };
+      const onUp = () => { dragging = false; };
+      resizer.addEventListener('mousedown', (e) => { dragging = true; e.preventDefault(); });
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      resizer._cleanup = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
     }
   };
 
