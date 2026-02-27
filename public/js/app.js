@@ -387,49 +387,46 @@
 
       async function fetchSuggestions(q) {
         if (!q || q.length < 1) { hideSuggest(); return; }
-        const items = [];
         const ql = q.toLowerCase();
+        const autoItems = [];
+        const fixedItems = [];
 
-        items.push({ label: q, url: 'https://www.google.com/search?q=' + encodeURIComponent(q), icon: 'ri-google-fill', badge: 'Google 검색', badgeClass: 'google' });
-        items.push({ label: q, url: 'https://chatgpt.com/?q=' + encodeURIComponent(q), icon: 'ri-openai-fill', badge: 'ChatGPT 검색', badgeClass: 'chatgpt' });
+        try {
+          const resp = await fetch(`https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(q)}`);
+          const data = await resp.json();
+          (data[1] || []).slice(0, 5).forEach(s => {
+            if (s.toLowerCase() === ql) return;
+            autoItems.push({ label: s, url: 'https://www.google.com/search?q=' + encodeURIComponent(s), icon: 'ri-search-line' });
+          });
+        } catch {}
 
-        const matchBm = bookmarks.filter(b =>
+        fixedItems.push({ label: q, url: 'https://www.google.com/search?q=' + encodeURIComponent(q), icon: 'ri-google-fill', badge: 'Google 검색', badgeClass: 'google' });
+
+        bookmarks.filter(b =>
           b.title.toLowerCase().includes(ql) || b.url.toLowerCase().includes(ql)
-        ).slice(0, 3);
-        matchBm.forEach(b => {
+        ).slice(0, 3).forEach(b => {
           let hostname = '';
           try { hostname = new URL(b.url).hostname; } catch {}
-          items.push({
+          fixedItems.push({
             label: b.title, url: b.url,
             favicon: hostname ? `https://www.google.com/s2/favicons?domain=${hostname}&sz=32` : null,
             badge: '북마크', badgeClass: 'bookmark',
           });
         });
 
-        const matchTabs = dynTabs.filter(t =>
+        dynTabs.filter(t =>
           t.title.toLowerCase().includes(ql) || t.url.toLowerCase().includes(ql)
-        ).slice(0, 2);
-        matchTabs.forEach(t => {
+        ).slice(0, 2).forEach(t => {
           let hostname = '';
           try { hostname = new URL(t.url).hostname; } catch {}
-          items.push({
+          fixedItems.push({
             label: t.title, url: t.url,
             favicon: hostname ? `https://www.google.com/s2/favicons?domain=${hostname}&sz=32` : null,
             badge: '열린 탭', badgeClass: 'history',
           });
         });
 
-        try {
-          const resp = await fetch(`https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(q)}`);
-          const data = await resp.json();
-          const suggestions = (data[1] || []).slice(0, 4);
-          suggestions.forEach(s => {
-            if (s.toLowerCase() === ql) return;
-            items.push({ label: s, url: 'https://www.google.com/search?q=' + encodeURIComponent(s), icon: 'ri-search-line', badge: '', badgeClass: 'suggest' });
-          });
-        } catch {}
-
-        showSuggest(items.slice(0, 10));
+        showSuggest([...autoItems, ...fixedItems].slice(0, 10));
       }
 
       urlInput.addEventListener('keydown', (e) => {
@@ -449,6 +446,7 @@
           ? (suggestItems[suggestIdx].url || suggestItems[suggestIdx].label)
           : urlInput.value.trim();
         if (!val) return;
+        hideSuggest();
         navigateToUrl(val);
       });
 
