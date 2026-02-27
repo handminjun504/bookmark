@@ -321,11 +321,12 @@
       framesContainer.querySelector('#dtf-ss-btn').addEventListener('click', () => window.__screenshot());
 
       const urlInput = framesContainer.querySelector('#dtf-url-input');
-      urlInput.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        const val = urlInput.value.trim();
-        if (!val) return;
+      let suggestDropdown = null;
+      let suggestItems = [];
+      let suggestIdx = -1;
+      let suggestTimer = null;
+
+      function navigateToUrl(val) {
         const frame = getActiveFrame();
         if (!frame) return;
         let navigateUrl;
@@ -336,16 +337,135 @@
         } else {
           navigateUrl = 'https://www.google.com/search?q=' + encodeURIComponent(val);
         }
-        if (frame.tagName === 'WEBVIEW') {
-          frame.loadURL(navigateUrl);
-        } else {
-          frame.src = navigateUrl;
-        }
+        if (frame.tagName === 'WEBVIEW') frame.loadURL(navigateUrl);
+        else frame.src = navigateUrl;
         const tab = dynTabs.find(t => t.id === activeDynTabId);
         if (tab) tab.url = navigateUrl;
+        hideSuggest();
         urlInput.blur();
+      }
+
+      function showSuggest(items) {
+        hideSuggest();
+        if (!items.length) return;
+        suggestItems = items;
+        suggestIdx = 0;
+        const toolbar = framesContainer.querySelector('.dtf-toolbar');
+        if (!toolbar) return;
+        suggestDropdown = document.createElement('div');
+        suggestDropdown.className = 'url-suggest-dropdown';
+        items.forEach((it, i) => {
+          const el = document.createElement('div');
+          el.className = 'url-suggest-item' + (i === 0 ? ' active' : '');
+          let iconHtml;
+          if (it.favicon) iconHtml = `<img src="${it.favicon}" onerror="this.outerHTML='<i class=\\'ri-search-line\\'></i>'" />`;
+          else if (it.icon) iconHtml = `<i class="${it.icon}"></i>`;
+          else iconHtml = '<i class="ri-search-line"></i>';
+          el.innerHTML = `<div class="url-suggest-icon">${iconHtml}</div>
+            <div class="url-suggest-text">
+              <span class="url-suggest-label">${escapeHtml(it.label)}</span>
+              ${it.badge ? `<span class="url-suggest-badge ${it.badgeClass || ''}">${it.badge}</span>` : ''}
+            </div>`;
+          el.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            navigateToUrl(it.url || it.label);
+          });
+          el.addEventListener('mouseenter', () => {
+            suggestDropdown.querySelectorAll('.url-suggest-item').forEach((s, si) => s.classList.toggle('active', si === i));
+            suggestIdx = i;
+          });
+          suggestDropdown.appendChild(el);
+        });
+        toolbar.appendChild(suggestDropdown);
+      }
+
+      function hideSuggest() {
+        if (suggestDropdown) { suggestDropdown.remove(); suggestDropdown = null; }
+        suggestItems = [];
+        suggestIdx = -1;
+      }
+
+      async function fetchSuggestions(q) {
+        if (!q || q.length < 1) { hideSuggest(); return; }
+        const items = [];
+        const ql = q.toLowerCase();
+
+        items.push({ label: q, url: 'https://www.google.com/search?q=' + encodeURIComponent(q), icon: 'ri-google-fill', badge: 'Google 검색', badgeClass: 'google' });
+        items.push({ label: q, url: 'https://chatgpt.com/?q=' + encodeURIComponent(q), icon: 'ri-openai-fill', badge: 'ChatGPT 검색', badgeClass: 'chatgpt' });
+
+        const matchBm = bookmarks.filter(b =>
+          b.title.toLowerCase().includes(ql) || b.url.toLowerCase().includes(ql)
+        ).slice(0, 3);
+        matchBm.forEach(b => {
+          let hostname = '';
+          try { hostname = new URL(b.url).hostname; } catch {}
+          items.push({
+            label: b.title, url: b.url,
+            favicon: hostname ? `https://www.google.com/s2/favicons?domain=${hostname}&sz=32` : null,
+            badge: '북마크', badgeClass: 'bookmark',
+          });
+        });
+
+        const matchTabs = dynTabs.filter(t =>
+          t.title.toLowerCase().includes(ql) || t.url.toLowerCase().includes(ql)
+        ).slice(0, 2);
+        matchTabs.forEach(t => {
+          let hostname = '';
+          try { hostname = new URL(t.url).hostname; } catch {}
+          items.push({
+            label: t.title, url: t.url,
+            favicon: hostname ? `https://www.google.com/s2/favicons?domain=${hostname}&sz=32` : null,
+            badge: '열린 탭', badgeClass: 'history',
+          });
+        });
+
+        try {
+          const resp = await fetch(`https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(q)}`);
+          const data = await resp.json();
+          const suggestions = (data[1] || []).slice(0, 4);
+          suggestions.forEach(s => {
+            if (s.toLowerCase() === ql) return;
+            items.push({ label: s, url: 'https://www.google.com/search?q=' + encodeURIComponent(s), icon: 'ri-search-line', badge: '', badgeClass: 'suggest' });
+          });
+        } catch {}
+
+        showSuggest(items.slice(0, 10));
+      }
+
+      urlInput.addEventListener('keydown', (e) => {
+        if (suggestDropdown && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+          e.preventDefault();
+          const els = suggestDropdown.querySelectorAll('.url-suggest-item');
+          if (e.key === 'ArrowDown') suggestIdx = Math.min(suggestIdx + 1, els.length - 1);
+          else suggestIdx = Math.max(suggestIdx - 1, 0);
+          els.forEach((el, i) => el.classList.toggle('active', i === suggestIdx));
+          if (suggestItems[suggestIdx]) urlInput.value = suggestItems[suggestIdx].label;
+          return;
+        }
+        if (e.key === 'Escape') { hideSuggest(); return; }
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const val = (suggestDropdown && suggestIdx >= 0 && suggestItems[suggestIdx])
+          ? (suggestItems[suggestIdx].url || suggestItems[suggestIdx].label)
+          : urlInput.value.trim();
+        if (!val) return;
+        navigateToUrl(val);
       });
-      urlInput.addEventListener('focus', () => urlInput.select());
+
+      urlInput.addEventListener('input', () => {
+        clearTimeout(suggestTimer);
+        const val = urlInput.value.trim();
+        if (!val) { hideSuggest(); return; }
+        if (/^https?:\/\//i.test(val)) { hideSuggest(); return; }
+        suggestTimer = setTimeout(() => fetchSuggestions(val), 200);
+      });
+
+      urlInput.addEventListener('focus', () => {
+        urlInput.select();
+        const val = urlInput.value.trim();
+        if (val && !/^https?:\/\//i.test(val)) fetchSuggestions(val);
+      });
+      urlInput.addEventListener('blur', () => { setTimeout(hideSuggest, 200); });
 
       framesContainer.querySelector('#dtf-zoom-in').addEventListener('click', () => {
         const frame = getActiveFrame();
@@ -443,6 +563,13 @@
           else if (dir === 'right' && frame.canGoForward()) frame.goForward();
           else if (dir === 'down') createDynTab('https://www.google.com', 'Google');
           else if (dir === 'up') closeDynTab(id);
+        } else if (e.channel === 'pw-request-creds') {
+          const data = e.args[0];
+          if (data?.domain && window.electronAPI?.getPasswords) {
+            window.electronAPI.getPasswords(data.domain).then(creds => {
+              if (creds?.length && frame.send) frame.send('pw-dropdown-data', creds);
+            });
+          }
         } else if (e.channel === 'preload-ready') {
           console.log('[LinkFlow] Webview preload ready:', e.args[0]?.domain);
         }
