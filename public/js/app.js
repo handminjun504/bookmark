@@ -336,6 +336,8 @@
         let navigateUrl;
         if (/^https?:\/\//i.test(val)) {
           navigateUrl = val;
+        } else if (/^localhost(:\d+)?(\/|$)/i.test(val) || /^127\.0\.0\.1(:\d+)?(\/|$)/.test(val) || /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?(\/|$)/.test(val)) {
+          navigateUrl = 'http://' + val;
         } else if (/^[^\s]+\.[^\s]+$/.test(val) && !/\s/.test(val)) {
           navigateUrl = 'https://' + val;
         } else {
