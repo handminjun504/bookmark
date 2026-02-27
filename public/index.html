@@ -107,15 +107,70 @@
 
     <!-- Tab: Clients -->
     <main class="tab-content" id="tab-clients">
-      <div class="clients-tab-header">
-        <h2><i class="ri-building-2-line"></i> 거래처</h2>
-        <button class="btn btn-primary btn-sm" id="btn-tab-add-client"><i class="ri-add-line"></i> 거래처 추가</button>
+      <div class="clients-layout">
+        <aside class="clients-sidebar" id="clients-sidebar">
+          <div class="clients-sidebar-header">
+            <h3><i class="ri-building-2-line"></i> 거래처</h3>
+            <button class="btn btn-primary btn-xs" id="btn-tab-add-client"><i class="ri-add-line"></i> 추가</button>
+          </div>
+          <div class="clients-sidebar-search">
+            <i class="ri-search-line"></i>
+            <input type="text" id="clients-search-input" placeholder="검색..." />
+          </div>
+          <div class="clients-sidebar-list" id="clients-tab-list"></div>
+        </aside>
+        <div class="clients-detail" id="clients-detail">
+          <div class="clients-detail-empty" id="clients-detail-empty">
+            <i class="ri-building-2-line"></i>
+            <p>거래처를 선택하세요</p>
+          </div>
+          <div class="clients-detail-content hidden" id="clients-detail-content">
+            <div class="clients-detail-header">
+              <div class="clients-detail-title-row">
+                <div class="clients-detail-icon"><i class="ri-building-2-line"></i></div>
+                <h2 id="cd-title"></h2>
+              </div>
+              <div class="clients-detail-actions">
+                <button class="btn btn-sm btn-outline" id="btn-cd-edit"><i class="ri-edit-line"></i> 수정</button>
+                <button class="btn btn-sm btn-danger-outline" id="btn-cd-delete"><i class="ri-delete-bin-line"></i> 삭제</button>
+              </div>
+            </div>
+            <div class="clients-detail-body" id="cd-body">
+              <section class="cd-section">
+                <h4><i class="ri-key-2-line"></i> 경리나라 계정</h4>
+                <div class="cd-cred-grid">
+                  <div class="cd-cred-item">
+                    <span class="cd-cred-label">아이디</span>
+                    <span class="cd-cred-value" id="cd-gyeongli-id">-</span>
+                    <button class="icon-btn icon-btn-xs btn-cd-copy" data-target="cd-gyeongli-id" title="복사"><i class="ri-file-copy-line"></i></button>
+                  </div>
+                  <div class="cd-cred-item">
+                    <span class="cd-cred-label">비밀번호</span>
+                    <span class="cd-cred-value cred-masked" id="cd-gyeongli-pw">••••••</span>
+                    <button class="icon-btn icon-btn-xs btn-cd-toggle-pw" title="표시/숨기기"><i class="ri-eye-line"></i></button>
+                    <button class="icon-btn icon-btn-xs btn-cd-copy-pw" title="복사"><i class="ri-file-copy-line"></i></button>
+                  </div>
+                </div>
+              </section>
+              <section class="cd-section" id="cd-memo-section">
+                <h4><i class="ri-sticky-note-line"></i> 메모</h4>
+                <p class="cd-memo-text" id="cd-memo">-</p>
+              </section>
+              <section class="cd-section">
+                <div class="cd-section-header">
+                  <h4><i class="ri-link"></i> 바로가기</h4>
+                  <button class="btn btn-xs btn-outline" id="btn-cd-add-shortcut"><i class="ri-add-line"></i> 추가</button>
+                </div>
+                <div id="cd-shortcuts-list"></div>
+              </section>
+              <section class="cd-section">
+                <h4><i class="ri-calendar-line"></i> 관련 일정</h4>
+                <div id="cd-events-list"></div>
+              </section>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="clients-tab-search">
-        <i class="ri-search-line"></i>
-        <input type="text" id="clients-search-input" placeholder="거래처명, 아이디, 메모 검색..." />
-      </div>
-      <div class="clients-tab-list" id="clients-tab-list"></div>
     </main>
 
     <!-- Tab: Calendar (with task sidebar) -->

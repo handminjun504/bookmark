@@ -1381,23 +1381,20 @@
       return;
     }
 
-    list.innerHTML = filtered.map(c => {
-      const memoSnippet = c.memo ? c.memo.substring(0, 60) : '';
-      return `
-      <div class="client-tab-card" data-id="${c.id}">
+    list.innerHTML = filtered.map(c => `
+      <div class="client-tab-card${currentClientId === c.id ? ' active' : ''}" data-id="${c.id}">
         <div class="client-tab-icon"><i class="ri-building-2-line"></i></div>
         <div class="client-tab-body">
           <div class="client-tab-name">${escapeHtml(c.name)}</div>
           ${c.gyeongli_id ? `<div class="client-tab-id">${escapeHtml(c.gyeongli_id)}</div>` : ''}
-          ${memoSnippet ? `<div class="client-tab-memo">${escapeHtml(memoSnippet)}${c.memo.length > 60 ? '...' : ''}</div>` : ''}
         </div>
-        <i class="ri-arrow-right-s-line client-tab-arrow"></i>
-      </div>`;
-    }).join('');
+      </div>`).join('');
 
     list.querySelectorAll('.client-tab-card').forEach(card => {
       card.addEventListener('click', () => {
-        openClientDetail(card.dataset.id);
+        list.querySelectorAll('.client-tab-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        openClientDetailInline(card.dataset.id);
       });
     });
   }
@@ -1419,6 +1416,84 @@
       UI.hidePanel('clients-panel');
       UI.showPanel('client-detail-panel');
     } catch (err) { UI.showToast(err.message, 'error'); }
+  }
+
+  async function openClientDetailInline(clientId) {
+    currentClientId = clientId;
+    const empty = document.getElementById('clients-detail-empty');
+    const content = document.getElementById('clients-detail-content');
+    empty.classList.add('hidden');
+    content.classList.remove('hidden');
+
+    document.getElementById('cd-title').textContent = '로딩중...';
+    document.getElementById('cd-gyeongli-id').textContent = '-';
+    const pwEl = document.getElementById('cd-gyeongli-pw');
+    pwEl.textContent = '••••••';
+    pwEl.classList.add('cred-masked');
+    pwEl._realValue = '';
+    document.getElementById('cd-memo').textContent = '-';
+    document.getElementById('cd-shortcuts-list').innerHTML = '';
+    document.getElementById('cd-events-list').innerHTML = '';
+
+    try {
+      currentClientData = await Auth.request(`/clients/${clientId}`);
+      document.getElementById('cd-title').textContent = currentClientData.name;
+      document.getElementById('cd-gyeongli-id').textContent = currentClientData.gyeongli_id || '-';
+      pwEl._realValue = currentClientData.gyeongli_pw || '';
+      document.getElementById('cd-memo').textContent = currentClientData.memo || '-';
+      if (!currentClientData.memo) document.getElementById('cd-memo-section').style.display = 'none';
+      else document.getElementById('cd-memo-section').style.display = '';
+
+      const [shortcuts, events] = await Promise.all([
+        Auth.request(`/clients/${clientId}/shortcuts`).catch(() => []),
+        Auth.request(`/clients/${clientId}/events`).catch(() => []),
+      ]);
+      renderCdShortcuts(shortcuts);
+      renderCdEvents(events);
+    } catch (err) {
+      UI.showToast(err.message, 'error');
+    }
+
+    renderClientsTabList();
+  }
+
+  function renderCdShortcuts(shortcuts) {
+    const list = document.getElementById('cd-shortcuts-list');
+    if (!shortcuts.length) { list.innerHTML = '<p class="cd-empty">바로가기가 없습니다</p>'; return; }
+    list.innerHTML = shortcuts.map(s => `
+      <div class="cd-shortcut-item" data-id="${s.id}">
+        <span class="shortcut-icon">${s.icon || '🔗'}</span>
+        <a href="${escapeHtml(s.url)}" target="_blank" title="${escapeHtml(s.url)}">${escapeHtml(s.title)}</a>
+        <button class="icon-btn icon-btn-xs btn-cd-open-sc" data-url="${escapeHtml(s.url)}" title="탭에서 열기"><i class="ri-external-link-line"></i></button>
+        <button class="icon-btn icon-btn-xs btn-cd-del-sc" data-id="${s.id}" title="삭제"><i class="ri-delete-bin-line"></i></button>
+      </div>`).join('');
+
+    list.querySelectorAll('.btn-cd-open-sc').forEach(btn => {
+      btn.addEventListener('click', e => { e.stopPropagation(); createDynTab(btn.dataset.url); });
+    });
+    list.querySelectorAll('.btn-cd-del-sc').forEach(btn => {
+      btn.addEventListener('click', async e => {
+        e.stopPropagation();
+        try {
+          await Auth.request(`/clients/${currentClientId}/shortcuts/${btn.dataset.id}`, { method: 'DELETE' });
+          UI.showToast('삭제되었습니다', 'success');
+          const sc = await Auth.request(`/clients/${currentClientId}/shortcuts`).catch(() => []);
+          renderCdShortcuts(sc);
+        } catch (err) { UI.showToast(err.message, 'error'); }
+      });
+    });
+  }
+
+  function renderCdEvents(events) {
+    const list = document.getElementById('cd-events-list');
+    if (!events.length) { list.innerHTML = '<p class="cd-empty">관련 일정이 없습니다</p>'; return; }
+    list.innerHTML = events.slice(0, 20).map(ev => `
+      <div class="cd-event-item">
+        <span class="cd-event-dot" style="background:${ev.color}"></span>
+        <span class="cd-event-date">${ev.start_date}</span>
+        <span class="cd-event-title">${escapeHtml(ev.title)}</span>
+        ${ev.is_done ? '<i class="ri-checkbox-circle-fill" style="color:var(--success)"></i>' : ''}
+      </div>`).join('');
   }
 
   async function loadClientShortcuts(clientId) {
@@ -1513,19 +1588,17 @@
       gyeongli_pw: document.getElementById('cl-gyeongli-pw').value || null,
       memo: document.getElementById('cl-memo').value.trim() || null,
     };
+    UI.closeModal('client-modal');
     try {
       if (editId) {
         if (!data.gyeongli_pw) delete data.gyeongli_pw;
         await Auth.request(`/clients/${editId}`, { method: 'PUT', body: JSON.stringify(data) });
         UI.showToast('거래처가 수정되었습니다', 'success');
-        UI.closeModal('client-modal');
-        openClientDetail(editId);
         loadClientsTab();
+        openClientDetailInline(editId);
       } else {
         await Auth.request('/clients', { method: 'POST', body: JSON.stringify(data) });
         UI.showToast('거래처가 추가되었습니다', 'success');
-        UI.closeModal('client-modal');
-        loadClients();
         loadClientsTab();
       }
     } catch (err) { UI.showToast(err.message, 'error'); }
@@ -1538,8 +1611,11 @@
     try {
       await Auth.request(`/clients/${currentClientId}`, { method: 'DELETE' });
       UI.showToast('삭제되었습니다', 'success');
+      currentClientId = null;
+      currentClientData = null;
+      document.getElementById('clients-detail-empty').classList.remove('hidden');
+      document.getElementById('clients-detail-content').classList.add('hidden');
       UI.hidePanel('client-detail-panel');
-      loadClients();
       loadClientsTab();
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
@@ -2399,12 +2475,46 @@
       renderClientsTabList();
     });
 
-    // Clients side panel
-    document.getElementById('btn-add-client').addEventListener('click', openAddClient);
+    // Clients inline detail
+    document.getElementById('btn-cd-edit').addEventListener('click', openEditClient);
+    document.getElementById('btn-cd-delete').addEventListener('click', deleteClient);
+    document.getElementById('btn-cd-add-shortcut').addEventListener('click', openAddShortcut);
+
+    document.querySelectorAll('.btn-cd-copy').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = document.getElementById(btn.dataset.target);
+        const text = el._realValue || el.textContent;
+        navigator.clipboard.writeText(text).then(() => UI.showToast('복사되었습니다', 'success'));
+      });
+    });
+    document.querySelector('.btn-cd-toggle-pw')?.addEventListener('click', function() {
+      const el = document.getElementById('cd-gyeongli-pw');
+      if (el.classList.contains('cred-masked')) {
+        el.textContent = el._realValue || '';
+        el.classList.remove('cred-masked');
+        this.querySelector('i').className = 'ri-eye-off-line';
+      } else {
+        el.textContent = '••••••';
+        el.classList.add('cred-masked');
+        this.querySelector('i').className = 'ri-eye-line';
+      }
+    });
+    document.querySelector('.btn-cd-copy-pw')?.addEventListener('click', () => {
+      const el = document.getElementById('cd-gyeongli-pw');
+      const text = el._realValue || el.textContent;
+      navigator.clipboard.writeText(text).then(() => UI.showToast('복사되었습니다', 'success'));
+    });
+
+    // Clients side panel (legacy)
+    const btnAddClientSide = document.getElementById('btn-add-client');
+    if (btnAddClientSide) btnAddClientSide.addEventListener('click', openAddClient);
     document.getElementById('client-form').addEventListener('submit', saveClient);
-    document.getElementById('btn-edit-client').addEventListener('click', openEditClient);
-    document.getElementById('btn-delete-client').addEventListener('click', deleteClient);
-    document.getElementById('btn-add-shortcut').addEventListener('click', openAddShortcut);
+    const btnEditClientSide = document.getElementById('btn-edit-client');
+    if (btnEditClientSide) btnEditClientSide.addEventListener('click', openEditClient);
+    const btnDeleteClientSide = document.getElementById('btn-delete-client');
+    if (btnDeleteClientSide) btnDeleteClientSide.addEventListener('click', deleteClient);
+    const btnAddShortcutSide = document.getElementById('btn-add-shortcut');
+    if (btnAddShortcutSide) btnAddShortcutSide.addEventListener('click', openAddShortcut);
     document.getElementById('shortcut-form').addEventListener('submit', saveShortcut);
 
     document.querySelectorAll('.btn-copy-cred').forEach(btn => {

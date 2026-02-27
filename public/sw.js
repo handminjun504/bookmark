@@ -1,4 +1,4 @@
-const CACHE_NAME = 'linkflow-v8';
+const CACHE_NAME = 'linkflow-v9';
 const STATIC_ASSETS = [
   '/',
   '/css/style.css',
