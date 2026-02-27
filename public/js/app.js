@@ -1353,14 +1353,17 @@
     try {
       clientsList = await Auth.request('/clients');
       renderClientsTabList();
+      renderClDashboard();
     } catch (err) {
       if (err.message === 'No team assigned') {
-        document.getElementById('clients-tab-list').innerHTML = '<p class="empty-hint">소속된 팀이 없습니다</p>';
+        document.getElementById('clients-tab-list').innerHTML = '<p style="padding:12px;color:var(--text-muted);font-size:12px">소속된 팀이 없습니다</p>';
       } else {
         UI.showToast(err.message, 'error');
       }
     }
   }
+
+  let clCurrentView = 'dashboard';
 
   function renderClientsTabList() {
     const list = document.getElementById('clients-tab-list');
@@ -1376,25 +1379,95 @@
 
     if (!filtered.length) {
       list.innerHTML = q
-        ? '<p class="empty-hint">검색 결과가 없습니다</p>'
-        : '<p class="empty-hint">등록된 거래처가 없습니다</p>';
+        ? '<p style="padding:12px;color:var(--text-muted);font-size:12px">검색 결과 없음</p>'
+        : '';
       return;
     }
 
     list.innerHTML = filtered.map(c => `
-      <div class="client-tab-card${currentClientId === c.id ? ' active' : ''}" data-id="${c.id}">
-        <div class="client-tab-icon"><i class="ri-building-2-line"></i></div>
-        <div class="client-tab-body">
-          <div class="client-tab-name">${escapeHtml(c.name)}</div>
-          ${c.gyeongli_id ? `<div class="client-tab-id">${escapeHtml(c.gyeongli_id)}</div>` : ''}
-        </div>
+      <div class="cl-list-item${currentClientId === c.id && clCurrentView === 'detail' ? ' active' : ''}" data-id="${c.id}">
+        <span class="cl-list-item-name">${escapeHtml(c.name)}</span>
+        <span class="cl-list-item-badge"><i class="ri-building-2-line"></i></span>
       </div>`).join('');
 
-    list.querySelectorAll('.client-tab-card').forEach(card => {
+    list.querySelectorAll('.cl-list-item').forEach(item => {
+      item.addEventListener('click', () => {
+        document.getElementById('cl-nav-dashboard').classList.remove('active');
+        list.querySelectorAll('.cl-list-item').forEach(i => i.classList.remove('active'));
+        item.classList.add('active');
+        clCurrentView = 'detail';
+        openClientDetailInline(item.dataset.id);
+      });
+    });
+  }
+
+  function switchClView(viewName) {
+    document.getElementById('cl-view-dashboard').classList.toggle('hidden', viewName !== 'dashboard');
+    document.getElementById('cl-view-detail').classList.toggle('hidden', viewName !== 'detail');
+    clCurrentView = viewName;
+  }
+
+  function renderClDashboard() {
+    const body = document.getElementById('cl-dashboard-body');
+    const total = clientsList.length;
+    const withId = clientsList.filter(c => c.gyeongli_id).length;
+    const withMemo = clientsList.filter(c => c.memo).length;
+
+    let html = `<div class="cl-dash-stats">
+      <div class="cl-stat-card"><div class="cl-stat-num">${total}</div><div class="cl-stat-label">전체 거래처</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${withId}</div><div class="cl-stat-label">계정 등록</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${total - withId}</div><div class="cl-stat-label">계정 미등록</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${withMemo}</div><div class="cl-stat-label">메모 있음</div></div>
+    </div>`;
+
+    const noAccount = clientsList.filter(c => !c.gyeongli_id);
+    if (noAccount.length) {
+      html += `<div class="cl-dash-section">
+        <div class="cl-dash-section-title"><i class="ri-alert-line" style="color:#e65100"></i> 계정 미등록 거래처 <span class="cl-dash-count">${noAccount.length}</span></div>`;
+      noAccount.slice(0, 5).forEach(c => {
+        html += `<div class="cl-dash-card" data-id="${c.id}">
+          <div class="cl-dash-card-icon" style="background:#ff9800"></div>
+          <div class="cl-dash-card-body">
+            <div class="cl-dash-card-name">${escapeHtml(c.name)}</div>
+            <div class="cl-dash-card-sub">${c.memo ? escapeHtml(c.memo.substring(0, 40)) : '메모 없음'}</div>
+          </div>
+          <div class="cl-dash-tags"><span class="cl-dash-tag warn">계정 미등록</span></div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    html += `<div class="cl-dash-section">
+      <div class="cl-dash-section-title"><i class="ri-building-2-line" style="color:var(--primary)"></i> 전체 거래처 <span class="cl-dash-count">${total}</span></div>`;
+    if (!total) {
+      html += '<div class="cl-dash-empty">등록된 거래처가 없습니다</div>';
+    } else {
+      clientsList.forEach(c => {
+        html += `<div class="cl-dash-card" data-id="${c.id}">
+          <div class="cl-dash-card-icon" style="background:var(--primary)"></div>
+          <div class="cl-dash-card-body">
+            <div class="cl-dash-card-name">${escapeHtml(c.name)}</div>
+            <div class="cl-dash-card-sub">${c.gyeongli_id ? escapeHtml(c.gyeongli_id) : '-'}</div>
+          </div>
+          <div class="cl-dash-tags">
+            ${c.gyeongli_id ? '<span class="cl-dash-tag info">계정 등록</span>' : '<span class="cl-dash-tag warn">미등록</span>'}
+            ${c.memo ? '<span class="cl-dash-tag success">메모</span>' : ''}
+          </div>
+        </div>`;
+      });
+    }
+    html += '</div>';
+
+    body.innerHTML = html;
+
+    body.querySelectorAll('.cl-dash-card').forEach(card => {
       card.addEventListener('click', () => {
-        list.querySelectorAll('.client-tab-card').forEach(c => c.classList.remove('active'));
-        card.classList.add('active');
-        openClientDetailInline(card.dataset.id);
+        const id = card.dataset.id;
+        document.getElementById('cl-nav-dashboard').classList.remove('active');
+        const items = document.querySelectorAll('.cl-list-item');
+        items.forEach(i => i.classList.toggle('active', i.dataset.id === id));
+        clCurrentView = 'detail';
+        openClientDetailInline(id);
       });
     });
   }
@@ -1420,10 +1493,7 @@
 
   async function openClientDetailInline(clientId) {
     currentClientId = clientId;
-    const empty = document.getElementById('clients-detail-empty');
-    const content = document.getElementById('clients-detail-content');
-    empty.classList.add('hidden');
-    content.classList.remove('hidden');
+    switchClView('detail');
 
     document.getElementById('cd-title').textContent = '로딩중...';
     document.getElementById('cd-gyeongli-id').textContent = '-';
@@ -1453,8 +1523,6 @@
     } catch (err) {
       UI.showToast(err.message, 'error');
     }
-
-    renderClientsTabList();
   }
 
   function renderCdShortcuts(shortcuts) {
@@ -1613,8 +1681,8 @@
       UI.showToast('삭제되었습니다', 'success');
       currentClientId = null;
       currentClientData = null;
-      document.getElementById('clients-detail-empty').classList.remove('hidden');
-      document.getElementById('clients-detail-content').classList.add('hidden');
+      switchClView('dashboard');
+      document.getElementById('cl-nav-dashboard').classList.add('active');
       UI.hidePanel('client-detail-panel');
       loadClientsTab();
     } catch (err) { UI.showToast(err.message, 'error'); }
@@ -2473,6 +2541,12 @@
     document.getElementById('clients-search-input').addEventListener('input', (e) => {
       clientsTabSearchQuery = e.target.value.trim();
       renderClientsTabList();
+    });
+    document.getElementById('cl-nav-dashboard').addEventListener('click', () => {
+      document.getElementById('cl-nav-dashboard').classList.add('active');
+      document.querySelectorAll('.cl-list-item').forEach(i => i.classList.remove('active'));
+      currentClientId = null;
+      switchClView('dashboard');
     });
 
     // Clients inline detail
