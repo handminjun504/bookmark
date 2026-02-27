@@ -1386,8 +1386,11 @@
 
     list.innerHTML = filtered.map(c => `
       <div class="cl-list-item${currentClientId === c.id && clCurrentView === 'detail' ? ' active' : ''}" data-id="${c.id}">
-        <span class="cl-list-item-name">${escapeHtml(c.name)}</span>
-        <span class="cl-list-item-badge"><i class="ri-building-2-line"></i></span>
+        <span class="cl-list-icon"><i class="ri-building-2-line"></i></span>
+        <div class="cl-list-body">
+          <div class="cl-list-name">${escapeHtml(c.name)}</div>
+          ${c.gyeongli_id ? `<div class="cl-list-sub">${escapeHtml(c.gyeongli_id)}</div>` : ''}
+        </div>
       </div>`).join('');
 
     list.querySelectorAll('.cl-list-item').forEach(item => {
