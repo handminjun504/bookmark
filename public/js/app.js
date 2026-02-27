@@ -385,6 +385,28 @@
         suggestIdx = -1;
       }
 
+      function googleSuggest(q) {
+        return new Promise((resolve) => {
+          const cbName = '_gsc_' + Date.now();
+          const timeout = setTimeout(() => { cleanup(); resolve([]); }, 2000);
+          function cleanup() {
+            clearTimeout(timeout);
+            delete window[cbName];
+            const el = document.getElementById(cbName);
+            if (el) el.remove();
+          }
+          window[cbName] = (data) => {
+            cleanup();
+            resolve(data[1] || []);
+          };
+          const s = document.createElement('script');
+          s.id = cbName;
+          s.src = `https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(q)}&callback=${cbName}`;
+          s.onerror = () => { cleanup(); resolve([]); };
+          document.head.appendChild(s);
+        });
+      }
+
       async function fetchSuggestions(q) {
         if (!q || q.length < 1) { hideSuggest(); return; }
         const ql = q.toLowerCase();
@@ -392,9 +414,8 @@
         const fixedItems = [];
 
         try {
-          const resp = await fetch(`https://suggestqueries.google.com/complete/search?client=chrome&q=${encodeURIComponent(q)}`);
-          const data = await resp.json();
-          (data[1] || []).slice(0, 5).forEach(s => {
+          const suggestions = await googleSuggest(q);
+          suggestions.slice(0, 5).forEach(s => {
             if (s.toLowerCase() === ql) return;
             autoItems.push({ label: s, url: 'https://www.google.com/search?q=' + encodeURIComponent(s), icon: 'ri-search-line' });
           });
