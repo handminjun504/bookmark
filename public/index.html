@@ -84,6 +84,7 @@
 
     <nav class="main-tab-bar" id="main-tab-bar">
       <button class="main-tab active" data-tab="bookmarks"><i class="ri-bookmark-line"></i><span>북마크</span></button>
+      <button class="main-tab" data-tab="clients" id="main-tab-clients" style="display:none"><i class="ri-building-2-line"></i><span>거래처</span></button>
       <button class="main-tab" data-tab="calendar"><i class="ri-calendar-line"></i><span>캘린더</span></button>
       <button class="main-tab" data-tab="memos"><i class="ri-sticky-note-line"></i><span>메모</span></button>
       <div class="tab-divider" id="tab-divider"></div>
@@ -102,6 +103,19 @@
         <p>등록된 북마크가 없습니다</p>
         <button class="btn btn-primary" id="btn-empty-add"><i class="ri-add-line"></i> 첫 번째 북마크 추가</button>
       </div>
+    </main>
+
+    <!-- Tab: Clients -->
+    <main class="tab-content" id="tab-clients">
+      <div class="clients-tab-header">
+        <h2><i class="ri-building-2-line"></i> 거래처</h2>
+        <button class="btn btn-primary btn-sm" id="btn-tab-add-client"><i class="ri-add-line"></i> 거래처 추가</button>
+      </div>
+      <div class="clients-tab-search">
+        <i class="ri-search-line"></i>
+        <input type="text" id="clients-search-input" placeholder="거래처명, 아이디, 메모 검색..." />
+      </div>
+      <div class="clients-tab-list" id="clients-tab-list"></div>
     </main>
 
     <!-- Tab: Calendar (with task sidebar) -->

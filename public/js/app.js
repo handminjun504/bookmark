@@ -67,6 +67,7 @@
       searchBox.style.display = 'none';
     }
 
+    if (tab === 'clients') loadClientsTab();
     if (tab === 'calendar') Calendar.load();
     if (tab === 'memos') Memos.load();
   }
@@ -563,8 +564,11 @@
     else adminBtn.style.display = 'none';
 
     const clientsBtn = document.getElementById('btn-clients');
-    if (user.team_id) clientsBtn.style.display = '';
-    else clientsBtn.style.display = 'none';
+    clientsBtn.style.display = 'none';
+
+    const clientsMainTab = document.getElementById('main-tab-clients');
+    if (user.team_id) clientsMainTab.style.display = '';
+    else clientsMainTab.style.display = 'none';
 
     Calendar.init();
     Memos.init();
@@ -1177,6 +1181,7 @@
   let clientsList = [];
   let currentClientId = null;
   let currentClientData = null;
+  let clientsTabSearchQuery = '';
 
   async function openClientsPanel() {
     UI.showPanel('clients-panel');
@@ -1214,6 +1219,59 @@
 
     list.querySelectorAll('.client-card').forEach(card => {
       card.addEventListener('click', () => openClientDetail(card.dataset.id));
+    });
+  }
+
+  async function loadClientsTab() {
+    try {
+      clientsList = await Auth.request('/clients');
+      renderClientsTabList();
+    } catch (err) {
+      if (err.message === 'No team assigned') {
+        document.getElementById('clients-tab-list').innerHTML = '<p class="empty-hint">소속된 팀이 없습니다</p>';
+      } else {
+        UI.showToast(err.message, 'error');
+      }
+    }
+  }
+
+  function renderClientsTabList() {
+    const list = document.getElementById('clients-tab-list');
+    const q = clientsTabSearchQuery.toLowerCase();
+    let filtered = clientsList;
+    if (q) {
+      filtered = clientsList.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        (c.gyeongli_id || '').toLowerCase().includes(q) ||
+        (c.memo || '').toLowerCase().includes(q)
+      );
+    }
+
+    if (!filtered.length) {
+      list.innerHTML = q
+        ? '<p class="empty-hint">검색 결과가 없습니다</p>'
+        : '<p class="empty-hint">등록된 거래처가 없습니다</p>';
+      return;
+    }
+
+    list.innerHTML = filtered.map(c => {
+      const memoSnippet = c.memo ? c.memo.substring(0, 60) : '';
+      return `
+      <div class="client-tab-card" data-id="${c.id}">
+        <div class="client-tab-icon"><i class="ri-building-2-line"></i></div>
+        <div class="client-tab-body">
+          <div class="client-tab-name">${escapeHtml(c.name)}</div>
+          ${c.gyeongli_id ? `<div class="client-tab-id">${escapeHtml(c.gyeongli_id)}</div>` : ''}
+          ${memoSnippet ? `<div class="client-tab-memo">${escapeHtml(memoSnippet)}${c.memo.length > 60 ? '...' : ''}</div>` : ''}
+        </div>
+        <i class="ri-arrow-right-s-line client-tab-arrow"></i>
+      </div>`;
+    }).join('');
+
+    list.querySelectorAll('.client-tab-card').forEach(card => {
+      card.addEventListener('click', () => {
+        openClientDetail(card.dataset.id);
+      });
     });
   }
 
@@ -1335,11 +1393,13 @@
         UI.showToast('거래처가 수정되었습니다', 'success');
         UI.closeModal('client-modal');
         openClientDetail(editId);
+        loadClientsTab();
       } else {
         await Auth.request('/clients', { method: 'POST', body: JSON.stringify(data) });
         UI.showToast('거래처가 추가되었습니다', 'success');
         UI.closeModal('client-modal');
         loadClients();
+        loadClientsTab();
       }
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
@@ -1352,8 +1412,8 @@
       await Auth.request(`/clients/${currentClientId}`, { method: 'DELETE' });
       UI.showToast('삭제되었습니다', 'success');
       UI.hidePanel('client-detail-panel');
-      UI.showPanel('clients-panel');
       loadClients();
+      loadClientsTab();
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
@@ -2205,7 +2265,14 @@
     });
     document.getElementById('btn-create-team').addEventListener('click', createTeam);
 
-    // Clients
+    // Clients tab
+    document.getElementById('btn-tab-add-client').addEventListener('click', openAddClient);
+    document.getElementById('clients-search-input').addEventListener('input', (e) => {
+      clientsTabSearchQuery = e.target.value.trim();
+      renderClientsTabList();
+    });
+
+    // Clients side panel
     document.getElementById('btn-add-client').addEventListener('click', openAddClient);
     document.getElementById('client-form').addEventListener('submit', saveClient);
     document.getElementById('btn-edit-client').addEventListener('click', openEditClient);
