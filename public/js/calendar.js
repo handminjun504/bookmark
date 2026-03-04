@@ -1,6 +1,7 @@
 const Calendar = (() => {
   let currentYear, currentMonth;
   let events = [];
+  let notifyEvents = [];
   let weekTasks = [];
   let notifyTimers = [];
   let holidayCache = {};
@@ -85,12 +86,22 @@ const Calendar = (() => {
       return;
     }
 
+    const now = new Date();
+    const realYear = now.getFullYear();
+    const realMonth = now.getMonth() + 1;
+    const isViewingCurrentMonth = currentYear === realYear && (currentMonth + 1) === realMonth;
+
     try {
-      const [eventsData, _holidays] = await Promise.all([
+      const promises = [
         Auth.request(`/events?year=${currentYear}&month=${currentMonth + 1}`),
         loadHolidays(currentYear),
-      ]);
-      events = eventsData;
+      ];
+      if (!isViewingCurrentMonth) {
+        promises.push(Auth.request(`/events?year=${realYear}&month=${realMonth}`));
+      }
+      const results = await Promise.all(promises);
+      events = results[0];
+      notifyEvents = isViewingCurrentMonth ? events : (results[2] || []);
     } catch (err) {
       console.error('[Calendar] 일정 로드 실패:', err.message);
       if (err.message !== 'Session expired' && retryCount < 1) {
@@ -100,6 +111,7 @@ const Calendar = (() => {
         UI.showToast('일정을 불러오지 못했습니다', 'error');
       }
       events = [];
+      notifyEvents = [];
     }
     render();
     scheduleNotifications();
@@ -220,8 +232,9 @@ const Calendar = (() => {
         const checked = t.is_done ? 'checked' : '';
         const doneClass = t.is_done ? ' task-done' : '';
         const time = t.start_time ? t.start_time.substring(0, 5) : '';
+        const dateAttr = (t._recurring || t.recurrence_type) ? ` data-date="${t.start_date}"` : '';
         html += `<div class="task-item${doneClass}">
-          <input type="checkbox" class="task-check" data-id="${t.id}" ${checked} />
+          <input type="checkbox" class="task-check" data-id="${t.id}"${dateAttr} ${checked} />
           <div class="task-item-body">
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
@@ -239,7 +252,9 @@ const Calendar = (() => {
         const item = cb.closest('.task-item');
         if (item) item.classList.toggle('task-done');
         try {
-          await Auth.request(`/events/${cb.dataset.id}/done`, { method: 'PATCH' });
+          const targetDate = cb.dataset.date || '';
+          const qs = targetDate ? `?target_date=${targetDate}` : '';
+          await Auth.request(`/events/${cb.dataset.id}/done${qs}`, { method: 'PATCH' });
           load();
         } catch (err) {
           UI.showToast(err.message, 'error');
@@ -420,7 +435,7 @@ const Calendar = (() => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
     const now = new Date();
-    events.forEach(ev => {
+    (notifyEvents.length ? notifyEvents : events).forEach(ev => {
       if (ev.remind_minutes == null || !ev.start_time) return;
       const eventTime = new Date(`${ev.start_date}T${ev.start_time}`);
       const notifyTime = new Date(eventTime.getTime() - ev.remind_minutes * 60000);

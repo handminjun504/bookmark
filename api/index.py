@@ -1,5 +1,6 @@
 import sys
 import os
+import json
 import traceback
 from datetime import datetime, timezone, date, timedelta
 from dateutil.relativedelta import relativedelta
@@ -566,6 +567,29 @@ async def reset_password(user_id: str, req: dict, admin=Depends(get_admin_user))
 
 # ── Events (Calendar) ──
 
+_DONE_SEP = "\n__LFDONE__"
+
+
+def _parse_completed_dates(desc):
+    """Parse completed dates metadata from the description field."""
+    if not desc or _DONE_SEP not in desc:
+        return (desc, set())
+    parts = desc.split(_DONE_SEP, 1)
+    clean_desc = parts[0] if parts[0] else None
+    try:
+        dates = set(json.loads(parts[1]))
+    except Exception:
+        dates = set()
+    return (clean_desc, dates)
+
+
+def _encode_completed_dates(desc, dates_set):
+    """Encode completed dates into the description field."""
+    clean = desc or ""
+    if not dates_set:
+        return clean if clean else None
+    return clean + _DONE_SEP + json.dumps(sorted(dates_set))
+
 
 def _adjust_to_weekday(d):
     """주말(토/일) 또는 한국 공휴일이면 직전 평일로 이동"""
@@ -582,6 +606,9 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
         if not rtype:
             expanded.append(ev)
             continue
+
+        raw_desc = ev.get("description")
+        clean_desc, completed = _parse_completed_dates(raw_desc)
 
         base = date.fromisoformat(ev["start_date"])
         r_end = date.fromisoformat(ev["recurrence_end"]) if ev.get("recurrence_end") else view_end
@@ -604,6 +631,8 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
                     if display_date >= view_start and display_date <= r_end:
                         instance = dict(ev)
                         instance["start_date"] = display_date.isoformat()
+                        instance["description"] = clean_desc
+                        instance["is_done"] = display_date.isoformat() in completed
                         instance["_recurring"] = True
                         expanded.append(instance)
                 cur_month += interval
@@ -617,6 +646,8 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
                 if display_date >= view_start and display_date <= r_end:
                     instance = dict(ev)
                     instance["start_date"] = display_date.isoformat()
+                    instance["description"] = clean_desc
+                    instance["is_done"] = display_date.isoformat() in completed
                     instance["_recurring"] = True
                     expanded.append(instance)
 
@@ -709,6 +740,24 @@ async def update_event(
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    if "description" in data and (req.recurrence_type or data.get("recurrence_type")):
+        existing = (
+            db.table("events")
+            .select("description")
+            .eq("id", event_id)
+            .eq("user_id", user["sub"])
+            .execute()
+        )
+        if existing.data:
+            _, old_completed = _parse_completed_dates(
+                existing.data[0].get("description")
+            )
+            if old_completed:
+                data["description"] = _encode_completed_dates(
+                    data.get("description"), old_completed
+                )
+
     result = (
         db.table("events")
         .update(data)
@@ -718,7 +767,10 @@ async def update_event(
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Event not found")
-    return result.data[0]
+    resp = dict(result.data[0])
+    clean_desc, _ = _parse_completed_dates(resp.get("description"))
+    resp["description"] = clean_desc
+    return resp
 
 
 @app.delete("/api/events/{event_id}")
@@ -737,25 +789,47 @@ async def delete_event(event_id: str, user=Depends(get_current_user)):
 
 
 @app.patch("/api/events/{event_id}/done")
-async def toggle_event_done(event_id: str, user=Depends(get_current_user)):
+async def toggle_event_done(
+    event_id: str, target_date: str = None, user=Depends(get_current_user)
+):
     db = get_supabase()
     current = (
         db.table("events")
-        .select("is_done")
+        .select("is_done,recurrence_type,description")
         .eq("id", event_id)
         .eq("user_id", user["sub"])
         .execute()
     )
     if not current.data:
         raise HTTPException(status_code=404, detail="Event not found")
-    new_val = not current.data[0]["is_done"]
-    result = (
-        db.table("events")
-        .update({"is_done": new_val})
-        .eq("id", event_id)
-        .execute()
-    )
-    return result.data[0]
+
+    row = current.data[0]
+    if row.get("recurrence_type") and target_date:
+        clean_desc, completed = _parse_completed_dates(row.get("description"))
+        if target_date in completed:
+            completed.discard(target_date)
+        else:
+            completed.add(target_date)
+        new_desc = _encode_completed_dates(clean_desc, completed)
+        result = (
+            db.table("events")
+            .update({"description": new_desc})
+            .eq("id", event_id)
+            .execute()
+        )
+        resp = dict(result.data[0])
+        resp["is_done"] = target_date in completed
+        resp["description"] = clean_desc
+        return resp
+    else:
+        new_val = not row["is_done"]
+        result = (
+            db.table("events")
+            .update({"is_done": new_val})
+            .eq("id", event_id)
+            .execute()
+        )
+        return result.data[0]
 
 
 @app.get("/api/events/week")
@@ -774,13 +848,33 @@ async def get_week_tasks(date_str: str = None, user=Depends(get_current_user)):
         .select("*")
         .eq("user_id", user["sub"])
         .eq("is_task", True)
-        .gte("start_date", monday.isoformat())
         .lte("start_date", sunday.isoformat())
+        .or_(f"start_date.gte.{monday.isoformat()},recurrence_type.neq.null")
         .order("start_date")
         .order("start_time")
         .execute()
     )
-    return result.data
+
+    recurring = [e for e in result.data if e.get("recurrence_type")]
+    non_recurring = [
+        e for e in result.data
+        if not e.get("recurrence_type")
+        and e["start_date"] >= monday.isoformat()
+    ]
+
+    expanded = _expand_recurring(recurring, monday, sunday + timedelta(days=1))
+    week_tasks = [
+        e for e in expanded
+        if monday.isoformat() <= e["start_date"] <= sunday.isoformat()
+    ]
+
+    seen = {(e["id"], e["start_date"]) for e in week_tasks}
+    for ev in non_recurring:
+        if (ev["id"], ev["start_date"]) not in seen:
+            week_tasks.append(ev)
+
+    week_tasks.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
+    return week_tasks
 
 
 # ── Teams (Admin) ──
