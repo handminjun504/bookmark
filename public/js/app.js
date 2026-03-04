@@ -544,6 +544,7 @@
           if (bar) bar.value = e.url;
         }
         autoFillWebview(frame, e.url);
+        updateWebviewTabInfo(id, e.url, tab.title, activeDynTabId === id);
       });
       frame.addEventListener('did-navigate-in-page', (e) => {
         if (tab.hibernated) return;
@@ -552,9 +553,11 @@
           const bar = framesContainer.querySelector('#dtf-url-input');
           if (bar) bar.value = e.url;
         }
+        updateWebviewTabInfo(id, e.url, undefined, undefined);
       });
       frame.addEventListener('dom-ready', () => {
         autoFillWebview(frame, url);
+        registerWebviewTab(id, tab.url, tab.title, activeDynTabId === id);
       });
       frame.addEventListener('did-start-loading', () => {
         const dot = document.querySelector(`.dyn-tab[data-dyn-id="${id}"] .dyn-tab-loading`);
@@ -675,6 +678,7 @@
     if (closed) closedTabHistory.push({ url: closed.url, title: closed.title });
     if (closedTabHistory.length > 20) closedTabHistory.shift();
     dynTabs.splice(idx, 1);
+    unregisterWebviewTab(id);
 
     const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
     if (tabEl) tabEl.remove();
@@ -1886,12 +1890,14 @@
       return;
     }
     toolbar.style.display = 'flex';
-    toolbar.innerHTML = exts.map(ext => `
-      <button class="ext-toolbar-btn" data-ext-id="${ext.id}" title="${escapeHtml(ext.name)}">
+    toolbar.innerHTML = exts.map(ext => {
+      const badge = ext.badgeText ? `<span class="ext-badge" style="background:${escapeHtml(ext.badgeColor)}">${escapeHtml(ext.badgeText)}</span>` : '';
+      return `<button class="ext-toolbar-btn" data-ext-id="${ext.id}" title="${escapeHtml(ext.name)}" ${ext.hasPopup ? '' : 'disabled'}>
         <img src="${escapeHtml(ext.icon)}" onerror="this.outerHTML='<i class=\\'ri-puzzle-line\\'></i>'" />
-      </button>
-    `).join('');
-    toolbar.querySelectorAll('.ext-toolbar-btn').forEach(btn => {
+        ${badge}
+      </button>`;
+    }).join('');
+    toolbar.querySelectorAll('.ext-toolbar-btn:not([disabled])').forEach(btn => {
       btn.addEventListener('click', () => {
         window.electronAPI.openExtensionPopup(btn.dataset.extId);
       });
@@ -1907,6 +1913,39 @@
       renderExtensionToolbar();
     } else if (result.error) {
       UI.showToast(result.error, 'error');
+    }
+  }
+
+  async function handleInstallCrx() {
+    if (!window.electronAPI?.installExtensionCrx) return;
+    const input = prompt('Chrome Web Store URL 또는 확장 프로그램 ID를 입력하세요:\n\n예시:\nhttps://chromewebstore.google.com/detail/extension-name/abcdefghijklmnopqrstuvwxyz012345\n또는: abcdefghijklmnopqrstuvwxyz012345');
+    if (!input) return;
+    UI.showToast('확장 프로그램 다운로드 중...', 'info');
+    const result = await window.electronAPI.installExtensionCrx(input);
+    if (result.ok) {
+      UI.showToast(`"${result.extension.name}" 확장 프로그램이 설치되었습니다`, 'success');
+      renderExtensionList();
+      renderExtensionToolbar();
+    } else {
+      UI.showToast(result.error || '설치 실패', 'error');
+    }
+  }
+
+  function registerWebviewTab(tabId, url, title, active) {
+    if (window.electronAPI?.registerTab) {
+      window.electronAPI.registerTab({ tabId, url, title, active });
+    }
+  }
+
+  function unregisterWebviewTab(tabId) {
+    if (window.electronAPI?.unregisterTab) {
+      window.electronAPI.unregisterTab(tabId);
+    }
+  }
+
+  function updateWebviewTabInfo(tabId, url, title, active) {
+    if (window.electronAPI?.updateTabInfo) {
+      window.electronAPI.updateTabInfo({ tabId, url, title, active });
     }
   }
 
@@ -2683,9 +2722,11 @@
     if (pwSaveYes) pwSaveYes.addEventListener('click', handlePwSave);
     if (pwSaveNo) pwSaveNo.addEventListener('click', hidePwSaveBar);
 
-    // Extension: load button
+    // Extension: load buttons
     const extLoadBtn = document.getElementById('btn-load-extension');
     if (extLoadBtn) extLoadBtn.addEventListener('click', handleLoadExtension);
+    const extCrxBtn = document.getElementById('btn-install-crx');
+    if (extCrxBtn) extCrxBtn.addEventListener('click', handleInstallCrx);
 
     // Update history button
     const updateHistoryBtn = document.getElementById('btn-update-history');

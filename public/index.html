@@ -259,8 +259,11 @@
       </div>
       <div class="setting-group" id="ext-manage-section" style="display:none">
         <h3><i class="ri-puzzle-line" style="color:var(--primary)"></i> 확장 프로그램</h3>
-        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Chrome 웹 스토어에서 다운로드한 확장 프로그램의 압축 해제 폴더를 불러올 수 있습니다.</p>
-        <button class="btn btn-primary btn-sm" id="btn-load-extension"><i class="ri-add-line"></i> 확장 프로그램 추가</button>
+        <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px">Chrome Web Store에서 직접 설치하거나, 압축 해제된 폴더를 불러올 수 있습니다.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-primary btn-sm" id="btn-install-crx"><i class="ri-chrome-line"></i> Web Store에서 설치</button>
+          <button class="btn btn-secondary btn-sm" id="btn-load-extension"><i class="ri-folder-open-line"></i> 폴더에서 추가</button>
+        </div>
         <div id="ext-list" style="margin-top:8px"></div>
       </div>
       <div class="setting-group">

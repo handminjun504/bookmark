@@ -1881,6 +1881,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   border: none;
   background: transparent;
   border-radius: 6px;
@@ -1895,6 +1896,21 @@ body {
   object-fit: contain;
 }
 .ext-toolbar-btn i { font-size: 16px; color: var(--text-light); }
+.ext-toolbar-btn[disabled] { opacity: 0.5; cursor: default; }
+.ext-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0 3px;
+  border-radius: 4px;
+  min-width: 12px;
+  text-align: center;
+  line-height: 14px;
+  pointer-events: none;
+}
 
 .ext-item {
   display: flex;
