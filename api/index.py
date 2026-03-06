@@ -1,8 +1,11 @@
 import sys
 import os
 import json
+import socket
+import ipaddress
 import traceback
 from datetime import datetime, timezone, date, timedelta
+from urllib.parse import urlparse
 from dateutil.relativedelta import relativedelta
 from holidayskr import is_holiday as kr_is_holiday, year_holidays as kr_year_holidays
 
@@ -47,10 +50,14 @@ from lib.models import (
 
 app = FastAPI()
 
+_ALLOWED_ORIGINS = [
+    origin.strip() for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",") if origin.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_ALLOWED_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -62,16 +69,16 @@ async def global_exception_handler(request: Request, exc: Exception):
     print(f"[ERROR] {request.url}: {exc}\n{tb}", file=sys.stderr, flush=True)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"Internal error: {str(exc)}"},
+        content={"detail": "Internal server error"},
     )
 
 
 @app.get("/api/ping")
 async def ping():
-    return {"status": "ok", "supabase_url": os.getenv("SUPABASE_URL", "NOT SET")[:30]}
+    return {"status": "ok"}
 
 
-# ── Dependencies ──
+# ?? Dependencies ??
 
 
 async def get_current_user(authorization: str = Header(None)):
@@ -90,7 +97,59 @@ async def get_admin_user(user=Depends(get_current_user)):
     return user
 
 
-# ── Setup (first-time admin creation) ──
+def _is_disallowed_outbound_host(hostname: str) -> bool:
+    if not hostname:
+        return True
+
+    host = hostname.strip().lower().rstrip(".")
+    if host == "localhost":
+        return True
+
+    try:
+        ips = [ipaddress.ip_address(host)]
+    except ValueError:
+        try:
+            infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        except Exception:
+            return True
+
+        ips = []
+        for info in infos:
+            ip_str = info[4][0]
+            try:
+                ips.append(ipaddress.ip_address(ip_str))
+            except ValueError:
+                continue
+
+        if not ips:
+            return True
+
+    for ip_obj in ips:
+        if (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_reserved
+            or ip_obj.is_unspecified
+        ):
+            return True
+
+    return False
+
+
+def _validate_outbound_url(raw_url: str) -> str:
+    parsed = urlparse((raw_url or "").strip())
+    if parsed.scheme not in {"http", "https"}:
+        raise HTTPException(status_code=400, detail="Only http/https URLs are allowed")
+    if not parsed.hostname:
+        raise HTTPException(status_code=400, detail="Invalid URL")
+    if _is_disallowed_outbound_host(parsed.hostname):
+        raise HTTPException(status_code=400, detail="Blocked target host")
+    return parsed.geturl()
+
+
+# ?? Setup (first-time admin creation) ??
 
 
 @app.post("/api/setup")
@@ -115,7 +174,7 @@ async def setup(req: SetupRequest):
     return {"message": "Admin created", "user_id": user.data[0]["id"]}
 
 
-# ── Auth ──
+# ?? Auth ??
 
 
 @app.post("/api/auth/login")
@@ -197,7 +256,7 @@ async def auto_login(req: AutoLoginRequest):
     }
 
 
-# ── Bookmarks ──
+# ?? Bookmarks ??
 
 
 @app.get("/api/bookmarks")
@@ -319,7 +378,7 @@ async def reorder_bookmarks(req: ReorderRequest, user=Depends(get_current_user))
     return {"message": "Reordered"}
 
 
-# ── Categories ──
+# ?? Categories ??
 
 
 @app.get("/api/categories")
@@ -393,16 +452,17 @@ async def delete_category(category_id: str, user=Depends(get_current_user)):
     return {"message": "Deleted"}
 
 
-# ── Embed Check ──
+# ?? Embed Check ??
 
 
 @app.get("/api/check-embeddable")
 async def check_embeddable(url: str, user=Depends(get_current_user)):
+    safe_url = _validate_outbound_url(url)
     try:
-        async with httpx.AsyncClient(
-            timeout=3.0, follow_redirects=True, verify=False
-        ) as client:
-            resp = await client.head(url)
+        async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
+            resp = await client.head(safe_url)
+            if resp.status_code in (405, 501):
+                resp = await client.get(safe_url)
             xfo = resp.headers.get("x-frame-options", "").lower().strip()
             csp = resp.headers.get("content-security-policy", "").lower()
 
@@ -418,7 +478,7 @@ async def check_embeddable(url: str, user=Depends(get_current_user)):
         return {"embeddable": False, "reason": "unreachable"}
 
 
-# ── Health Check ──
+# ?? Health Check ??
 
 
 @app.get("/api/health/{bookmark_id}")
@@ -428,6 +488,7 @@ async def check_health(bookmark_id: str, user=Depends(get_current_user)):
         db.table("bookmarks")
         .select("health_check_url, url")
         .eq("id", bookmark_id)
+        .or_(f"user_id.eq.{user['sub']},is_shared.eq.true")
         .execute()
     )
     if not result.data:
@@ -437,8 +498,13 @@ async def check_health(bookmark_id: str, user=Depends(get_current_user)):
     check_url = bm.get("health_check_url") or bm["url"]
 
     try:
+        safe_url = _validate_outbound_url(check_url)
+    except HTTPException:
+        return {"status": "blocked", "code": None}
+
+    try:
         async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
-            resp = await client.get(check_url)
+            resp = await client.get(safe_url)
             status = "online" if resp.status_code < 500 else "error"
             return {"status": status, "code": resp.status_code}
     except Exception:
@@ -449,23 +515,52 @@ async def check_health(bookmark_id: str, user=Depends(get_current_user)):
 async def batch_health_check(req: dict, user=Depends(get_current_user)):
     import asyncio
 
-    urls = req.get("urls", {})
+    raw_urls = req.get("urls", {})
+    if not isinstance(raw_urls, dict):
+        raise HTTPException(status_code=400, detail="Invalid payload")
+
+    bookmark_ids = list(raw_urls.keys())[:200]
     results = {}
+    if not bookmark_ids:
+        return results
 
-    async def _check(bid: str, url: str):
+    db = get_supabase()
+    accessible = (
+        db.table("bookmarks")
+        .select("id, health_check_url, url")
+        .or_(f"user_id.eq.{user['sub']},is_shared.eq.true")
+        .execute()
+    )
+    allowed_map = {row["id"]: row for row in accessible.data}
+
+    targets = {}
+    for bookmark_id in bookmark_ids:
+        row = allowed_map.get(bookmark_id)
+        if not row:
+            results[bookmark_id] = {"status": "forbidden", "code": None}
+            continue
+
+        check_url = row.get("health_check_url") or row.get("url") or ""
         try:
-            async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as c:
-                resp = await c.get(url)
-                status = "online" if resp.status_code < 500 else "error"
-                results[bid] = {"status": status, "code": resp.status_code}
-        except Exception:
-            results[bid] = {"status": "offline", "code": None}
+            targets[bookmark_id] = _validate_outbound_url(check_url)
+        except HTTPException:
+            results[bookmark_id] = {"status": "blocked", "code": None}
 
-    await asyncio.gather(*[_check(bid, url) for bid, url in urls.items()])
+    async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+        async def _check(bookmark_id: str, url: str):
+            try:
+                resp = await client.get(url)
+                status = "online" if resp.status_code < 500 else "error"
+                results[bookmark_id] = {"status": status, "code": resp.status_code}
+            except Exception:
+                results[bookmark_id] = {"status": "offline", "code": None}
+
+        await asyncio.gather(*[_check(bid, url) for bid, url in targets.items()])
+
     return results
 
 
-# ── User Settings ──
+# ?? User Settings ??
 
 
 @app.get("/api/user/settings")
@@ -507,7 +602,7 @@ async def change_password(req: PasswordChange, user=Depends(get_current_user)):
     return {"message": "Password changed"}
 
 
-# ── Admin ──
+# ?? Admin ??
 
 
 @app.get("/api/admin/users")
@@ -558,14 +653,20 @@ async def delete_user(user_id: str, admin=Depends(get_admin_user)):
 @app.post("/api/admin/users/{user_id}/reset-password")
 async def reset_password(user_id: str, req: dict, admin=Depends(get_admin_user)):
     db = get_supabase()
-    new_password = req.get("new_password", "0000")
-    db.table("users").update({"password_hash": hash_password(new_password)}).eq(
+    new_password = str(req.get("new_password") or "").strip()
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+    result = db.table("users").update({"password_hash": hash_password(new_password)}).eq(
         "id", user_id
     ).execute()
-    return {"message": "Password reset", "new_password": new_password}
+    if not result.data:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {"message": "Password reset"}
 
 
-# ── Events (Calendar) ──
+# ?? Events (Calendar) ??
 
 _DONE_SEP = "\n__LFDONE__"
 
@@ -592,7 +693,7 @@ def _encode_completed_dates(desc, dates_set):
 
 
 def _adjust_to_weekday(d):
-    """주말(토/일) 또는 한국 공휴일이면 직전 평일로 이동"""
+    """二쇰쭚(???? ?먮뒗 ?쒓뎅 怨듯쑕?쇱씠硫?吏곸쟾 ?됱씪濡??대룞"""
     while d.weekday() >= 5 or kr_is_holiday(d.isoformat()):
         d -= timedelta(days=1)
     return d
@@ -711,6 +812,8 @@ async def get_events(year: int, month: int, user=Depends(get_current_user)):
 @app.post("/api/events")
 async def create_event(req: EventCreate, user=Depends(get_current_user)):
     db = get_supabase()
+    if req.client_id:
+        _require_client_in_user_team(user, req.client_id)
     data = {
         "user_id": user["sub"],
         "title": req.title,
@@ -740,6 +843,9 @@ async def update_event(
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    if "client_id" in data and data["client_id"]:
+        _require_client_in_user_team(user, data["client_id"])
 
     if "description" in data and (req.recurrence_type or data.get("recurrence_type")):
         existing = (
@@ -815,6 +921,7 @@ async def toggle_event_done(
             db.table("events")
             .update({"description": new_desc})
             .eq("id", event_id)
+            .eq("user_id", user["sub"])
             .execute()
         )
         resp = dict(result.data[0])
@@ -827,6 +934,7 @@ async def toggle_event_done(
             db.table("events")
             .update({"is_done": new_val})
             .eq("id", event_id)
+            .eq("user_id", user["sub"])
             .execute()
         )
         return result.data[0]
@@ -877,7 +985,7 @@ async def get_week_tasks(date_str: str = None, user=Depends(get_current_user)):
     return week_tasks
 
 
-# ── Teams (Admin) ──
+# ?? Teams (Admin) ??
 
 
 @app.get("/api/admin/teams")
@@ -922,19 +1030,31 @@ async def delete_team(team_id: str, admin=Depends(get_admin_user)):
 async def assign_user_team(user_id: str, req: dict, admin=Depends(get_admin_user)):
     db = get_supabase()
     team_id = req.get("team_id")
-    db.table("users").update({"team_id": team_id}).eq("id", user_id).execute()
+
+    if team_id:
+        team = db.table("teams").select("id").eq("id", team_id).execute()
+        if not team.data:
+            raise HTTPException(status_code=404, detail="Team not found")
+
+    updated = db.table("users").update({"team_id": team_id}).eq("id", user_id).execute()
+    if not updated.data:
+        raise HTTPException(status_code=404, detail="User not found")
+
     return {"message": "Team assigned"}
 
 
-# ── Clients (거래처) ──
+# ?? Clients (嫄곕옒泥? ??
 
 
 def _get_fernet():
     from cryptography.fernet import Fernet
     import base64, hashlib
+
     key = os.getenv("ENCRYPTION_KEY")
     if not key:
-        jwt_secret = os.getenv("JWT_SECRET", "linkflow-default-secret")
+        jwt_secret = os.getenv("JWT_SECRET")
+        if not jwt_secret:
+            raise RuntimeError("Missing JWT_SECRET for encryption key derivation")
         derived = hashlib.sha256(jwt_secret.encode()).digest()
         key = base64.urlsafe_b64encode(derived).decode()
     return Fernet(key.encode() if isinstance(key, str) else key)
@@ -961,6 +1081,21 @@ def _get_user_team_id(user) -> str:
     if not u.data or not u.data[0].get("team_id"):
         raise HTTPException(status_code=403, detail="No team assigned")
     return u.data[0]["team_id"]
+
+
+def _require_client_in_user_team(user, client_id: str) -> str:
+    team_id = _get_user_team_id(user)
+    db = get_supabase()
+    client = (
+        db.table("clients")
+        .select("id")
+        .eq("id", client_id)
+        .eq("team_id", team_id)
+        .execute()
+    )
+    if not client.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return team_id
 
 
 @app.get("/api/clients")
@@ -1064,7 +1199,7 @@ async def delete_client(client_id: str, user=Depends(get_current_user)):
 
 @app.get("/api/clients/{client_id}/events")
 async def get_client_events(client_id: str, user=Depends(get_current_user)):
-    _get_user_team_id(user)
+    _require_client_in_user_team(user, client_id)
     db = get_supabase()
     result = (
         db.table("events")
@@ -1077,12 +1212,12 @@ async def get_client_events(client_id: str, user=Depends(get_current_user)):
     return result.data
 
 
-# ── Client Shortcuts ──
+# ?? Client Shortcuts ??
 
 
 @app.get("/api/clients/{client_id}/shortcuts")
 async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
-    _get_user_team_id(user)
+    _require_client_in_user_team(user, client_id)
     db = get_supabase()
     result = (
         db.table("client_shortcuts")
@@ -1098,7 +1233,7 @@ async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
 async def create_shortcut(
     client_id: str, req: ShortcutCreate, user=Depends(get_current_user)
 ):
-    _get_user_team_id(user)
+    _require_client_in_user_team(user, client_id)
     db = get_supabase()
     data = {
         "client_id": client_id,
@@ -1118,7 +1253,7 @@ async def update_shortcut(
     req: ShortcutUpdate,
     user=Depends(get_current_user),
 ):
-    _get_user_team_id(user)
+    _require_client_in_user_team(user, client_id)
     db = get_supabase()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
@@ -1139,7 +1274,7 @@ async def update_shortcut(
 async def delete_shortcut(
     client_id: str, shortcut_id: str, user=Depends(get_current_user)
 ):
-    _get_user_team_id(user)
+    _require_client_in_user_team(user, client_id)
     db = get_supabase()
     result = (
         db.table("client_shortcuts")
@@ -1153,7 +1288,7 @@ async def delete_shortcut(
     return {"message": "Deleted"}
 
 
-# ── Memos ──
+# ?? Memos ??
 
 
 @app.get("/api/memos")
@@ -1237,3 +1372,4 @@ async def toggle_pin_memo(memo_id: str, user=Depends(get_current_user)):
         .execute()
     )
     return result.data[0]
+

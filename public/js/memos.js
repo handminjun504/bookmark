@@ -42,7 +42,7 @@ const Memos = (() => {
       const pinClass = m.is_pinned ? 'pinned' : '';
       const preview = (m.content || '').substring(0, 120);
       return `
-        <div class="memo-card ${pinClass}" data-id="${m.id}" style="background:${m.color || '#fff'}">
+        <div class="memo-card ${pinClass}" data-id="${m.id}" style="background:${safeColor(m.color, '#FFFFFF')}">
           <div class="memo-card-header">
             <span class="memo-card-title">${escapeHtml(m.title || '제목 없음')}</span>
             <button class="icon-btn memo-pin-btn" data-id="${m.id}" title="고정"><i class="${pinIcon}"></i></button>
@@ -153,6 +153,13 @@ const Memos = (() => {
     const d = document.createElement('div');
     d.textContent = str;
     return d.innerHTML;
+  }
+
+  function safeColor(color, fallback = '#FFFFFF') {
+    const val = String(color || '').trim();
+    if (/^#[0-9a-fA-F]{3,8}$/.test(val)) return val;
+    if (/^rgba?\(\s*\d{1,3}(\s*,\s*\d{1,3}){2}(\s*,\s*(0|1|0?\.\d+))?\s*\)$/.test(val)) return val;
+    return fallback;
   }
 
   return { init, load };

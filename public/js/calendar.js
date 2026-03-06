@@ -162,7 +162,7 @@ const Calendar = (() => {
           const clientName = getClientName(ev.client_id);
           const clientTag = clientName ? `<span class="cal-client-tag">${escapeHtml(clientName)}</span> ` : '';
           const doneClass = ev.is_done ? ' cal-event-done' : '';
-          html += `<div class="cal-event-bar${doneClass}" style="background:${ev.color}" data-id="${ev.id}" title="${time}${clientName ? '['+clientName+'] ' : ''}${ev.title}">${recurIcon}${taskIcon}${clientTag}${time}${escapeHtml(ev.title)}</div>`;
+          html += `<div class="cal-event-bar${doneClass}" style="background:${safeColor(ev.color, '#4DA8DA')}" data-id="${escapeAttr(ev.id)}" title="${escapeAttr(`${time}${clientName ? '['+clientName+'] ' : ''}${ev.title}`)}">${recurIcon}${taskIcon}${clientTag}${time}${escapeHtml(ev.title)}</div>`;
         });
         if (dayEvents.length > 3) {
           html += `<div class="cal-event-more">+${dayEvents.length - 3}</div>`;
@@ -239,7 +239,7 @@ const Calendar = (() => {
             <span class="task-item-title">${escapeHtml(t.title)}</span>
             ${time ? `<span class="task-item-time">${time}</span>` : ''}
           </div>
-          <span class="task-color-dot" style="background:${t.color}"></span>
+          <span class="task-color-dot" style="background:${safeColor(t.color, '#4DA8DA')}"></span>
         </div>`;
       });
       html += '</div>';
@@ -280,7 +280,7 @@ const Calendar = (() => {
       calClientOptions = await Auth.request('/clients');
       const sel = document.getElementById('evt-client');
       sel.innerHTML = '<option value="">없음</option>' +
-        calClientOptions.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        calClientOptions.map(c => `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name)}</option>`).join('');
       wrap.style.display = '';
     } catch {
       wrap.style.display = 'none';
@@ -458,6 +458,17 @@ const Calendar = (() => {
   const _escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function escapeHtml(str) {
     return str ? str.replace(/[&<>"']/g, c => _escMap[c]) : '';
+  }
+
+  function escapeAttr(str) {
+    return escapeHtml(str).replace(/`/g, '&#96;');
+  }
+
+  function safeColor(color, fallback = '#4DA8DA') {
+    const val = String(color || '').trim();
+    if (/^#[0-9a-fA-F]{3,8}$/.test(val)) return val;
+    if (/^rgba?\(\s*\d{1,3}(\s*,\s*\d{1,3}){2}(\s*,\s*(0|1|0?\.\d+))?\s*\)$/.test(val)) return val;
+    return fallback;
   }
 
   return { init, load, openAddEvent, loadClientOptions, getClientName };
