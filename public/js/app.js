@@ -10,8 +10,9 @@
   let dynTabs = [];
   let dynTabIdCounter = 0;
   let activeDynTabId = null;
+  const WEB_APP_VERSION = '2.5.0';
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Init ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Init ──
 
   const AUTH_HANDOFF_PREFIX = 'lf_auth_handoff_';
 const AUTH_HANDOFF_TTL_MS = 60 * 1000;
@@ -83,7 +84,7 @@ async function init() {
     showLogin();
   }
 }
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Tab Navigation ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Tab Navigation ──
 
   function switchTab(tab) {
     activeTab = tab;
@@ -307,21 +308,21 @@ async function init() {
     if (!framesContainer.querySelector('.dtf-toolbar')) {
       framesContainer.innerHTML = `
         <div class="dtf-toolbar">
-          <button class="dtf-btn" id="dtf-back" title="???댁Ŧ"><i class="ri-arrow-left-line"></i></button>
+          <button class="dtf-btn" id="dtf-back" title="뒤로 가기"><i class="ri-arrow-left-line"></i></button>
           <button class="dtf-btn" id="dtf-forward" title="Forward"><i class="ri-arrow-right-line"></i></button>
           <button class="dtf-btn" id="dtf-refresh" title="Refresh"><i class="ri-refresh-line"></i></button>
-          <input class="dtf-url-bar" id="dtf-url-input" type="text" placeholder="URL ???놁졑 ???裕??롪틵???源낆꽑" />
+          <input class="dtf-url-bar" id="dtf-url-input" type="text" placeholder="URL 입력 또는 검색어를 입력하세요" />
           <div class="dtf-zoom-ctrl">
-            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-out" title="?怨뺣깹??(Ctrl+-)"><i class="ri-subtract-line"></i></button>
+            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-out" title="축소 (Ctrl+-)"><i class="ri-subtract-line"></i></button>
             <span class="dtf-zoom-label" id="dtf-zoom-label">100%</span>
-            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-in" title="?筌? (Ctrl++)"><i class="ri-add-line"></i></button>
+            <button class="dtf-btn dtf-zoom-btn" id="dtf-zoom-in" title="확대 (Ctrl++)"><i class="ri-add-line"></i></button>
             <button class="dtf-btn dtf-zoom-btn dtf-zoom-reset" id="dtf-zoom-reset" title="Reset Zoom (Ctrl+0)">Reset</button>
           </div>
           <button class="dtf-btn" id="dtf-note-btn" title="Page note"><i class="ri-sticky-note-line"></i></button>
-          <button class="dtf-btn" id="dtf-split-btn" title="??븐뻼???釉뚯뫓??(Ctrl+\\)"><i class="ri-layout-column-line"></i></button>
+          <button class="dtf-btn" id="dtf-split-btn" title="화면 분할 보기 (Ctrl+\\)"><i class="ri-layout-column-line"></i></button>
           <button class="dtf-btn" id="dtf-pip-btn" title="Picture in Picture"><i class="ri-picture-in-picture-exit-line"></i></button>
-          <button class="dtf-btn" id="dtf-ss-btn" title="???꾩씩?源껎ｇ댆?(Ctrl+Shift+S)"><i class="ri-screenshot-line"></i></button>
-          <button class="dtf-btn" id="dtf-external" title="??嶺뚢돦?⑵굢?????⒱뵛"><i class="ri-external-link-line"></i></button>
+          <button class="dtf-btn" id="dtf-ss-btn" title="화면 캡처 (Ctrl+Shift+S)"><i class="ri-screenshot-line"></i></button>
+          <button class="dtf-btn" id="dtf-external" title="외부 창에서 열기"><i class="ri-external-link-line"></i></button>
         </div>
         <div class="dtf-frame-wrap"></div>
       `;
@@ -636,7 +637,7 @@ async function init() {
         console.error('[LinkFlow] Webview crashed:', id, url);
         const tabEl = document.querySelector(`.dyn-tab[data-dyn-id="${id}"]`);
         if (tabEl) tabEl.style.opacity = '0.5';
-        if (typeof UI !== 'undefined') UI.showToast('??瑜곷턄嶺뚯솘??띠럾? ?寃몃쳳????곕????덈펲. ??????????濡?듆 ???됱Ŧ??μ쪠???紐껊퉵??', 'error');
+        if (typeof UI !== 'undefined') UI.showToast('탭이 충돌했습니다. 새로고침하거나 다시 열어주세요.', 'error');
         frame._crashed = true;
       });
       frame.addEventListener('did-fail-load', (e) => {
@@ -727,7 +728,7 @@ async function init() {
     }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Screens ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Screens ──
 
   function showLogin() {
     document.getElementById('login-screen').classList.remove('hidden');
@@ -789,11 +790,11 @@ async function init() {
       renderBookmarks();
       checkHealthAll();
     } catch (e) {
-      UI.showToast('??⑥щ턄???β돦裕녽????덉넮: ' + e.message, 'error');
+      UI.showToast('데이터를 불러오지 못했습니다: ' + e.message, 'error');
     }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Category Tabs ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Category Tabs ──
 
   function renderCategoryTabs() {
     const container = document.getElementById('category-tabs');
@@ -813,7 +814,7 @@ async function init() {
     });
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Bookmarks Render ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Bookmarks Render ──
 
   function renderBookmarks() {
     const grid = document.getElementById('bookmarks-grid');
@@ -872,7 +873,7 @@ async function init() {
     });
 
     if (sharedFiltered.length > 0 && activeCategory === 'all') {
-      html += `<div class="type-section-title shared"><i class="ri-share-line"></i> ??ㅻ쾴???釉뚮궙壤??/div>`;
+      html += `<div class="type-section-title shared"><i class="ri-share-line"></i> 공유 북마크</div>`;
       html += sharedFiltered.map(b => cardHTML(b, true)).join('');
     }
 
@@ -960,7 +961,7 @@ async function init() {
 
     return `
       <div class="bookmark-card" data-id="${safeId}" draggable="${isShared ? 'false' : 'true'}">
-        ${isShared ? '<span class="bookmark-shared-badge">??ㅻ쾴??/span>' : ''}
+        ${isShared ? '<span class="bookmark-shared-badge">공유됨</span>' : ''}
         ${!isShared ? `<div class="bookmark-actions">
           <button class="icon-btn btn-pin-bm ${b.is_pinned ? 'pinned' : ''}" data-id="${safeId}" title="${b.is_pinned ? 'Unpin' : 'Pin to top'}"><i class="${b.is_pinned ? 'ri-pushpin-fill' : 'ri-pushpin-line'}"></i></button>
           <button class="icon-btn btn-edit-bm" data-id="${safeId}" title="Edit"><i class="ri-edit-line"></i></button>
@@ -975,7 +976,7 @@ async function init() {
         </div>
         <div class="bookmark-meta">
           <span class="bookmark-type-badge">${catName || escapeHtml(typeInfo.label)}</span>
-          <span class="bookmark-status ${statusClass}" title="${escapeAttr(health || '?筌먦끉逾????덉?')}"></span>
+          <span class="bookmark-status ${statusClass}" title="${escapeAttr(health || '상태 정보 없음')}"></span>
         </div>
       </div>`;
   }
@@ -1007,7 +1008,7 @@ async function init() {
     } catch {}
     return '';
   }
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Health Check ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Health Check ──
 
   async function checkHealthAll() {
     const urlMap = {};
@@ -1028,11 +1029,11 @@ async function init() {
     renderBookmarks();
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Bookmark CRUD ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Bookmark CRUD ──
 
   function openAddBookmark() {
-    document.getElementById('bookmark-modal-title').textContent = '?釉뚮궙壤???怨뺣뼺?';
-    document.getElementById('bm-submit-btn').textContent = '?怨뺣뼺?';
+    document.getElementById('bookmark-modal-title').textContent = '북마크 추가';
+    document.getElementById('bm-submit-btn').textContent = '추가';
     document.getElementById('bookmark-form').reset();
     document.getElementById('bm-edit-id').value = '';
     document.getElementById('bm-open-mode').value = 'auto';
@@ -1047,7 +1048,7 @@ async function init() {
   function openEditBookmark(id) {
     const bm = bookmarks.find(b => b.id === id);
     if (!bm) return;
-    document.getElementById('bookmark-modal-title').textContent = '?釉뚮궙壤????瑜곸젧';
+    document.getElementById('bookmark-modal-title').textContent = '북마크 수정';
     document.getElementById('bm-submit-btn').textContent = 'Save';
     document.getElementById('bm-edit-id').value = id;
     document.getElementById('bm-title').value = bm.title;
@@ -1067,7 +1068,7 @@ async function init() {
 
   function populateCategorySelect(selected = '') {
     const sel = document.getElementById('bm-category');
-    sel.innerHTML = '<option value="">??怨몃쾳</option>';
+    sel.innerHTML = '<option value="">카테고리 없음</option>';
     categories.forEach(c => {
       const id = escapeAttr(String(c.id || ''));
       const icon = escapeHtml(c.icon || '');
@@ -1122,10 +1123,10 @@ async function init() {
     renderBookmarks();
     try {
       await Auth.request('/bookmarks/reorder', { method: 'PATCH', body: JSON.stringify({ items }) });
-    } catch { UI.showToast('??戮?맋 ?곌떠??????덉넮', 'error'); loadData(); }
+    } catch { UI.showToast('순서 저장 중 오류가 발생했습니다', 'error'); loadData(); }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Categories ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Categories ──
 
   function renderCategoryList() {
     const container = document.getElementById('category-list');
@@ -1133,7 +1134,7 @@ async function init() {
       <div class="category-manage-item">
         <span class="cat-icon-display">${escapeHtml(c.icon || '')}</span>
         <span class="cat-name-display">${escapeHtml(c.name)}</span>
-        <button class="icon-btn btn-edit-cat" data-id="${c.id}" title="??瑜곸젧"><i class="ri-edit-line"></i></button>
+        <button class="icon-btn btn-edit-cat" data-id="${c.id}" title="수정"><i class="ri-edit-line"></i></button>
         <button class="icon-btn btn-delete-cat" data-id="${c.id}" title="Delete"><i class="ri-delete-bin-line"></i></button>
       </div>`).join('');
     container.querySelectorAll('.btn-edit-cat').forEach(btn => btn.addEventListener('click', () => openEditCategory(btn.dataset.id)));
@@ -1146,9 +1147,9 @@ async function init() {
   }
 
   function openAddCategory() {
-    document.getElementById('category-modal-title').textContent = '?곸궠??誘ㅒ?μ쪚???怨뺣뼺?';
+    document.getElementById('category-modal-title').textContent = '카테고리 추가';
     document.getElementById('category-form').reset();
-    document.getElementById('cat-icon').value = '?뱚';
+    document.getElementById('cat-icon').value = '📁';
     document.getElementById('cat-edit-id').value = '';
     UI.openModal('category-modal');
   }
@@ -1156,7 +1157,7 @@ async function init() {
   function openEditCategory(id) {
     const cat = categories.find(c => c.id === id);
     if (!cat) return;
-    document.getElementById('category-modal-title').textContent = '?곸궠??誘ㅒ?μ쪚????瑜곸젧';
+    document.getElementById('category-modal-title').textContent = '카테고리 수정';
     document.getElementById('cat-icon').value = cat.icon;
     document.getElementById('cat-name').value = cat.name;
     document.getElementById('cat-edit-id').value = id;
@@ -1166,7 +1167,7 @@ async function init() {
   async function saveCategory(e) {
     e.preventDefault();
     const id = document.getElementById('cat-edit-id').value;
-    const data = { name: document.getElementById('cat-name').value.trim(), icon: document.getElementById('cat-icon').value.trim() || '?뱚' };
+    const data = { name: document.getElementById('cat-name').value.trim(), icon: document.getElementById('cat-icon').value.trim() || '📁' };
     try {
       if (id) {
         await Auth.request(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -1190,7 +1191,7 @@ async function init() {
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Settings ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Settings ──
 
   function openSettings() {
     const user = Auth.getUser();
@@ -1202,7 +1203,7 @@ async function init() {
     const versionEl = document.getElementById('app-version-display');
     if (versionEl) {
       const ver = window.electronAPI?.getAppVersion ? window.electronAPI.getAppVersion() : '';
-      versionEl.textContent = ver ? `LinkFlow v${ver}` : 'LinkFlow (???뺢퀗???';
+      versionEl.textContent = ver ? `LinkFlow v${ver}` : `LinkFlow Web v${WEB_APP_VERSION}`;
     }
     const pwSection = document.getElementById('pw-manage-section');
     const extSection = document.getElementById('ext-manage-section');
@@ -1225,7 +1226,7 @@ async function init() {
       await Auth.request('/user/settings', { method: 'PUT', body: JSON.stringify({ display_name: name }) });
       Auth.updateUser({ display_name: name });
       document.getElementById('user-display-name').textContent = name;
-      UI.showToast('???縕ョ뵳???곕????덈펲', 'success');
+      UI.showToast('프로필이 저장되었습니다', 'success');
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
@@ -1242,11 +1243,11 @@ async function init() {
       });
       Auth.updateUser({ lock_enabled: enabled, lock_timeout: timeout, pin_code: pin || null });
       if (enabled) Auth.startLockTimer(); else Auth.stopLockTimer();
-      UI.showToast('??ル맪?????깆젧?????縕ョ뵳???곕????덈펲', 'success');
+      UI.showToast('잠금 설정이 저장되었습니다', 'success');
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Admin ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Admin ──
 
   let adminTeams = [];
 
@@ -1266,14 +1267,14 @@ async function init() {
 
   function populateTeamSelect(selectId, teams) {
     const sel = document.getElementById(selectId);
-    sel.innerHTML = '<option value="">??怨몃쾳</option>' +
+    sel.innerHTML = '<option value="">팀 선택 안 함</option>' +
       teams.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
   }
 
   function renderAdminTeams(teams) {
     const list = document.getElementById('admin-team-list');
     if (!teams.length) {
-      list.innerHTML = '<p class="empty-hint">?繹먮굞夷????????怨룸????덈펲</p>';
+      list.innerHTML = '<p class="empty-hint">팀이 없습니다</p>';
       return;
     }
     list.innerHTML = teams.map(t => `
@@ -1319,13 +1320,13 @@ async function init() {
       <div class="user-item">
         <div class="user-item-avatar">${(u.display_name || u.username).charAt(0).toUpperCase()}</div>
         <div class="user-item-info">
-          <div class="user-name">${escapeHtml(u.display_name)}${u.is_admin ? '<span class="admin-badge">??㉱?洹먮봿??/span>' : ''}${u.team_id ? `<span class="team-badge">${escapeHtml(teamMap[u.team_id] || '')}</span>` : ''}</div>
+          <div class="user-name">${escapeHtml(u.display_name)}${u.is_admin ? '<span class="admin-badge">관리자</span>' : ''}${u.team_id ? `<span class="team-badge">${escapeHtml(teamMap[u.team_id] || '')}</span>` : ''}</div>
           <div class="user-id">${escapeHtml(u.username)}</div>
         </div>
         <div class="user-item-actions">
           ${!u.is_admin ? `
-            <select class="select-input select-sm user-team-select" data-id="${u.id}" title="?? ?곌떠???>
-              <option value="">?? ??怨몃쾳</option>
+            <select class="select-input select-sm user-team-select" data-id="${u.id}" title="팀 변경">
+              <option value="">팀 선택 안 함</option>
               ${teams.map(t => `<option value="${t.id}" ${u.team_id === t.id ? 'selected' : ''}>${escapeHtml(t.name)}</option>`).join('')}
             </select>
             <button class="icon-btn btn-reset-pw" data-id="${u.id}" data-name="${escapeHtml(u.display_name)}" title="Reset password"><i class="ri-key-line"></i></button>
@@ -1341,17 +1342,17 @@ async function init() {
             method: 'PATCH',
             body: JSON.stringify({ team_id: sel.value || null }),
           });
-          UI.showToast('?????곌떠??롪퍔?η뵳???곕????덈펲', 'success');
+          UI.showToast('팀 변경사항이 저장되었습니다', 'success');
         } catch (err) { UI.showToast(err.message, 'error'); }
       });
     });
     list.querySelectorAll('.btn-reset-pw').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const newPassword = prompt(`${btn.dataset.name} ??????踰????곕뻣 ?????뺢퀡???믩ご????놁졑??琉얠돪?? (8????怨대쭜)`);
+        const newPassword = prompt(`${btn.dataset.name} 사용자의 새 비밀번호를 입력하세요 (8자 이상)`);
         if (newPassword == null) return;
         const trimmed = newPassword.trim();
         if (trimmed.length < 8) {
-          UI.showToast('?????뺢퀡????8????怨대쭜????놁졑??琉얠돪??', 'error');
+          UI.showToast('새 비밀번호는 8자 이상이어야 합니다', 'error');
           return;
         }
         try {
@@ -1359,7 +1360,7 @@ async function init() {
             method: 'POST',
             body: JSON.stringify({ new_password: trimmed }),
           });
-          UI.showToast('?????뺢퀡???먯쾸? ?貫?껆뵳??븐뼔????곕????덈펲', 'success');
+          UI.showToast('비밀번호가 변경되었습니다', 'success');
         } catch (err) { UI.showToast(err.message, 'error'); }
       });
     });
@@ -1395,7 +1396,7 @@ async function init() {
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Clients (濾곌쑨??誘?럸? ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Clients ──
 
   let clientsList = [];
   let currentClientId = null;
@@ -1413,7 +1414,7 @@ async function init() {
       renderClientsList();
     } catch (err) {
       if (err.message === 'No team assigned') {
-        document.getElementById('clients-list').innerHTML = '<p class="empty-hint">???爰????????怨룸????덈펲</p>';
+        document.getElementById('clients-list').innerHTML = '<p class="empty-hint">팀이 지정되지 않았습니다</p>';
       } else {
         UI.showToast(err.message, 'error');
       }
@@ -1423,7 +1424,7 @@ async function init() {
   function renderClientsList() {
     const list = document.getElementById('clients-list');
     if (!clientsList.length) {
-      list.innerHTML = '<p class="empty-hint">?繹먮굞夷??濾곌쑨??誘?럸?? ??怨룸????덈펲</p>';
+      list.innerHTML = '<p class="empty-hint">등록된 거래처가 없습니다</p>';
       return;
     }
     list.innerHTML = clientsList.map(c => `
@@ -1448,7 +1449,7 @@ async function init() {
       renderClDashboard();
     } catch (err) {
       if (err.message === 'No team assigned') {
-        document.getElementById('clients-tab-list').innerHTML = '<p style="padding:12px;color:var(--text-muted);font-size:12px">???爰????????怨룸????덈펲</p>';
+        document.getElementById('clients-tab-list').innerHTML = '<p style="padding:12px;color:var(--text-muted);font-size:12px">팀이 지정되지 않았습니다</p>';
       } else {
         UI.showToast(err.message, 'error');
       }
@@ -1471,7 +1472,7 @@ async function init() {
 
     if (!filtered.length) {
       list.innerHTML = q
-        ? '<p style="padding:12px;color:var(--text-muted);font-size:12px">?롪틵????롪퍒?????怨몃쾳</p>'
+        ? '<p style="padding:12px;color:var(--text-muted);font-size:12px">검색 결과가 없습니다</p>'
         : '';
       return;
     }
@@ -1509,33 +1510,33 @@ async function init() {
     const withMemo = clientsList.filter(c => c.memo).length;
 
     let html = `<div class="cl-dash-stats">
-      <div class="cl-stat-card"><div class="cl-stat-num">${total}</div><div class="cl-stat-label">?熬곣뫕??濾곌쑨??誘?럸?/div></div>
-      <div class="cl-stat-card"><div class="cl-stat-num">${withId}</div><div class="cl-stat-label">??ｌ뫒???繹먮굞夷?/div></div>
-      <div class="cl-stat-card"><div class="cl-stat-num">${total - withId}</div><div class="cl-stat-label">??ｌ뫒??亦껋꼶梨띈린臾됱뿉?/div></div>
-      <div class="cl-stat-card"><div class="cl-stat-num">${withMemo}</div><div class="cl-stat-label">嶺뚮∥??????깅쾳</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${total}</div><div class="cl-stat-label">전체 거래처</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${withId}</div><div class="cl-stat-label">계정 등록됨</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${total - withId}</div><div class="cl-stat-label">계정 미등록</div></div>
+      <div class="cl-stat-card"><div class="cl-stat-num">${withMemo}</div><div class="cl-stat-label">메모 있음</div></div>
     </div>`;
 
     const noAccount = clientsList.filter(c => !c.gyeongli_id);
     if (noAccount.length) {
       html += `<div class="cl-dash-section">
-        <div class="cl-dash-section-title"><i class="ri-alert-line" style="color:#e65100"></i> ??ｌ뫒??亦껋꼶梨띈린臾됱뿉?濾곌쑨??誘?럸?<span class="cl-dash-count">${noAccount.length}</span></div>`;
+        <div class="cl-dash-section-title"><i class="ri-alert-line" style="color:#e65100"></i> 계정 미등록 거래처<span class="cl-dash-count">${noAccount.length}</span></div>`;
       noAccount.slice(0, 5).forEach(c => {
         html += `<div class="cl-dash-card" data-id="${c.id}">
           <div class="cl-dash-card-icon" style="background:#ff9800"></div>
           <div class="cl-dash-card-body">
             <div class="cl-dash-card-name">${escapeHtml(c.name)}</div>
-            <div class="cl-dash-card-sub">${c.memo ? escapeHtml(c.memo.substring(0, 40)) : '嶺뚮∥?????怨몃쾳'}</div>
+            <div class="cl-dash-card-sub">${c.memo ? escapeHtml(c.memo.substring(0, 40)) : '메모 없음'}</div>
           </div>
-          <div class="cl-dash-tags"><span class="cl-dash-tag warn">??ｌ뫒??亦껋꼶梨띈린臾됱뿉?/span></div>
+          <div class="cl-dash-tags"><span class="cl-dash-tag warn">계정 미등록</span></div>
         </div>`;
       });
       html += '</div>';
     }
 
     html += `<div class="cl-dash-section">
-      <div class="cl-dash-section-title"><i class="ri-building-2-line" style="color:var(--primary)"></i> ?熬곣뫕??濾곌쑨??誘?럸?<span class="cl-dash-count">${total}</span></div>`;
+      <div class="cl-dash-section-title"><i class="ri-building-2-line" style="color:var(--primary)"></i> 전체 거래처<span class="cl-dash-count">${total}</span></div>`;
     if (!total) {
-      html += '<div class="cl-dash-empty">?繹먮굞夷??濾곌쑨??誘?럸?? ??怨룸????덈펲</div>';
+      html += '<div class="cl-dash-empty">등록된 거래처가 없습니다</div>';
     } else {
       clientsList.forEach(c => {
         html += `<div class="cl-dash-card" data-id="${c.id}">
@@ -1545,8 +1546,8 @@ async function init() {
             <div class="cl-dash-card-sub">${c.gyeongli_id ? escapeHtml(c.gyeongli_id) : '-'}</div>
           </div>
           <div class="cl-dash-tags">
-            ${c.gyeongli_id ? '<span class="cl-dash-tag info">??ｌ뫒???繹먮굞夷?/span>' : '<span class="cl-dash-tag warn">亦껋꼶梨띈린臾됱뿉?/span>'}
-            ${c.memo ? '<span class="cl-dash-tag success">嶺뚮∥???/span>' : ''}
+            ${c.gyeongli_id ? '<span class="cl-dash-tag info">계정 등록됨</span>' : '<span class="cl-dash-tag warn">미등록</span>'}
+            ${c.memo ? '<span class="cl-dash-tag success">메모 있음</span>' : ''}
           </div>
         </div>`;
       });
@@ -1590,7 +1591,7 @@ async function init() {
     currentClientId = clientId;
     switchClView('detail');
 
-    document.getElementById('cd-title').textContent = '?β돦裕녽얇깶鍮?..';
+    document.getElementById('cd-title').textContent = '거래처 불러오는 중...';
     document.getElementById('cd-gyeongli-id').textContent = '-';
     const pwEl = document.getElementById('cd-gyeongli-pw');
     pwEl.textContent = '*****';
@@ -1622,7 +1623,7 @@ async function init() {
 
   function renderCdShortcuts(shortcuts) {
     const list = document.getElementById('cd-shortcuts-list');
-    if (!shortcuts.length) { list.innerHTML = '<p class="cd-empty">?꾩룆?餓λ뛼泥??リ옇?? ??怨룸????덈펲</p>'; return; }
+    if (!shortcuts.length) { list.innerHTML = '<p class="cd-empty">바로가기 항목이 없습니다</p>'; return; }
     list.innerHTML = shortcuts.map(s => {
       const safeUrl = safeHttpUrl(s.url) || '#';
       const safeId = escapeAttr(String(s.id || ''));
@@ -1656,7 +1657,7 @@ async function init() {
 
   function renderCdEvents(events) {
     const list = document.getElementById('cd-events-list');
-    if (!events.length) { list.innerHTML = '<p class="cd-empty">??㉱????源놁젧????怨룸????덈펲</p>'; return; }
+    if (!events.length) { list.innerHTML = '<p class="cd-empty">관련 일정이 없습니다</p>'; return; }
     list.innerHTML = events.slice(0, 20).map(ev => `
       <div class="cd-event-item">
         <span class="cd-event-dot" style="background:${safeColor(ev.color, '#4DA8DA')}"></span>
@@ -1675,7 +1676,7 @@ async function init() {
   function renderClientShortcuts(shortcuts) {
     const list = document.getElementById('client-shortcuts-list');
     if (!shortcuts.length) {
-      list.innerHTML = '<p class="empty-hint">?꾩룆?餓λ뛼泥??リ옇?? ??怨룸????덈펲</p>';
+      list.innerHTML = '<p class="empty-hint">바로가기 항목이 없습니다</p>';
       return;
     }
     list.innerHTML = shortcuts.map(s => {
@@ -1720,7 +1721,7 @@ async function init() {
   function renderClientEvents(events) {
     const list = document.getElementById('client-events-list');
     if (!events.length) {
-      list.innerHTML = '<p class="empty-hint">??㉱????源놁젧????怨룸????덈펲</p>';
+      list.innerHTML = '<p class="empty-hint">관련 일정이 없습니다</p>';
       return;
     }
     list.innerHTML = events.slice(0, 20).map(ev => `
@@ -1732,8 +1733,8 @@ async function init() {
       </div>`).join('');
   }
   function openAddClient() {
-    document.getElementById('client-modal-title').textContent = '濾곌쑨??誘?럸??怨뺣뼺?';
-    document.getElementById('cl-submit-btn').textContent = '?怨뺣뼺?';
+    document.getElementById('client-modal-title').textContent = '거래처 추가';
+    document.getElementById('cl-submit-btn').textContent = '추가';
     document.getElementById('client-form').reset();
     document.getElementById('cl-edit-id').value = '';
     UI.openModal('client-modal');
@@ -1741,7 +1742,7 @@ async function init() {
 
   function openEditClient() {
     if (!currentClientData) return;
-    document.getElementById('client-modal-title').textContent = '濾곌쑨??誘?럸???瑜곸젧';
+    document.getElementById('client-modal-title').textContent = '거래처 수정';
     document.getElementById('cl-submit-btn').textContent = 'Save';
     document.getElementById('cl-edit-id').value = currentClientId;
     document.getElementById('cl-name').value = currentClientData.name;
@@ -1793,8 +1794,8 @@ async function init() {
   }
 
   function openAddShortcut() {
-    document.getElementById('shortcut-modal-title').textContent = '?꾩룆?餓λ뛼泥????怨뺣뼺?';
-    document.getElementById('sc-submit-btn').textContent = '?怨뺣뼺?';
+    document.getElementById('shortcut-modal-title').textContent = '바로가기 추가';
+    document.getElementById('sc-submit-btn').textContent = '추가';
     document.getElementById('shortcut-form').reset();
     document.getElementById('sc-edit-id').value = '';
     document.getElementById('sc-client-id').value = currentClientId;
@@ -1828,16 +1829,16 @@ async function init() {
     const current = document.getElementById('pw-current').value;
     const newPw = document.getElementById('pw-new').value;
     const confirmPw = document.getElementById('pw-confirm').value;
-    if (newPw !== confirmPw) return UI.showToast('???????뺢퀡???먯쾸? ??源딅뭵??? ???용????덈펲', 'error');
+    if (newPw !== confirmPw) return UI.showToast('새 비밀번호와 확인 비밀번호가 일치하지 않습니다', 'error');
     try {
       await Auth.request('/user/password', { method: 'PUT', body: JSON.stringify({ current_password: current, new_password: newPw }) });
-      UI.showToast('?????뺢퀡???먯쾸? ?곌떠??롪퍔?η뵳???곕????덈펲', 'success');
+      UI.showToast('비밀번호가 변경되었습니다', 'success');
       UI.closeModal('pw-modal');
       document.getElementById('pw-form').reset();
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Password Manager (Electron only) ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Password Manager (Electron only) ──
 
   let pendingPwData = null;
   let pendingPwFrame = null;
@@ -1878,7 +1879,7 @@ async function init() {
   async function handlePwSave() {
     if (!pendingPwData || !window.electronAPI) return;
     await window.electronAPI.savePassword(pendingPwData);
-    UI.showToast('?????뺢퀡???먯쾸? ???縕ョ뵳???곕????덈펲', 'success');
+    UI.showToast('비밀번호가 저장되었습니다', 'success');
     hidePwSaveBar();
   }
 
@@ -1888,7 +1889,7 @@ async function init() {
     const all = await window.electronAPI.getAllPasswords();
     const domains = Object.keys(all);
     if (!domains.length) {
-      container.innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:8px 0;">???縕ワ쭕??????뺢퀡???먯쾸? ??怨룸????덈펲</p>';
+      container.innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:8px 0;">저장된 비밀번호가 없습니다</p>';
       return;
     }
     container.innerHTML = domains.map(domain => {
@@ -1915,23 +1916,23 @@ async function init() {
     });
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Extension Management ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Extension Management ──
 
   async function renderExtensionList() {
     const container = document.getElementById('ext-list');
     if (!container || !window.electronAPI?.listExtensions) return;
     const exts = await window.electronAPI.listExtensions();
     if (!exts.length) {
-      container.innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:4px 0;">???노뭵???筌먦끉???熬곣뫁夷?윜諛몄굡?????怨룸????덈펲</p>';
+      container.innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:4px 0;">설치된 확장 프로그램이 없습니다</p>';
     } else {
       container.innerHTML = exts.map(ext => `
         <div class="ext-item" data-ext-id="${ext.id}">
           <img class="ext-icon" src="${escapeHtml(ext.icon)}" onerror="this.style.display='none'" />
           <div class="ext-info">
             <div class="ext-name">${escapeHtml(ext.name)}</div>
-            <div class="ext-desc">${escapeHtml(ext.version)}${ext.description ? ' ??' + escapeHtml(ext.description).substring(0, 60) : ''}</div>
+            <div class="ext-desc">${escapeHtml(ext.version)}${ext.description ? ' · ' + escapeHtml(ext.description).substring(0, 60) : ''}</div>
           </div>
-          <button class="icon-btn ext-remove-btn" title="??蹂ㅽ깴"><i class="ri-delete-bin-line"></i></button>
+          <button class="icon-btn ext-remove-btn" title="삭제"><i class="ri-delete-bin-line"></i></button>
         </div>
       `).join('');
       container.querySelectorAll('.ext-remove-btn').forEach(btn => {
@@ -1943,7 +1944,7 @@ async function init() {
             renderExtensionList();
             renderExtensionToolbar();
           } else {
-            UI.showToast(result.error || '??蹂ㅽ깴 ???덉넮', 'error');
+            UI.showToast(result.error || '삭제에 실패했습니다', 'error');
           }
         });
       });
@@ -1988,16 +1989,16 @@ async function init() {
 
   async function handleInstallCrx() {
     if (!window.electronAPI?.installExtensionCrx) return;
-    const input = prompt('Chrome Web Store URL ???裕??筌먦끉???熬곣뫁夷?윜諛몄굡??ID?????놁졑??琉얠돪??\n\n???곕뻣:\nhttps://chromewebstore.google.com/detail/extension-name/abcdefghijklmnopqrstuvwxyz012345\n???裕? abcdefghijklmnopqrstuvwxyz012345');
+    const input = prompt('Chrome Web Store URL 또는 확장 프로그램 ID를 입력하세요.\n\n예시:\nhttps://chromewebstore.google.com/detail/extension-name/abcdefghijklmnopqrstuvwxyz012345\n또는 abcdefghijklmnopqrstuvwxyz012345');
     if (!input) return;
-    UI.showToast('?筌먦끉???熬곣뫁夷?윜諛몄굡?????깅뮧?β돦裕녻キ?繞?..', 'info');
+    UI.showToast('확장 프로그램을 설치하는 중입니다...','info');
     const result = await window.electronAPI.installExtensionCrx(input);
     if (result.ok) {
       UI.showToast(`"${result.extension.name}" extension installed.`, 'success');
       renderExtensionList();
       renderExtensionToolbar();
     } else {
-      UI.showToast(result.error || '???노뭵 ???덉넮', 'error');
+      UI.showToast(result.error || '설치에 실패했습니다', 'error');
     }
   }
 
@@ -2019,7 +2020,7 @@ async function init() {
     }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Update History ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Update History ──
 
   const GITHUB_RELEASES_URL = 'https://api.github.com/repos/handminjun504/linkflow/releases';
 
@@ -2048,19 +2049,19 @@ async function init() {
   async function showUpdateHistory() {
     UI.openModal('update-history-modal');
     const body = document.getElementById('update-history-body');
-    body.innerHTML = '<div class="update-loading"><i class="ri-loader-4-line ri-spin"></i> ???????釉띾쐞????노츎 繞?..</div>';
+    body.innerHTML = '<div class="update-loading"><i class="ri-loader-4-line ri-spin"></i> 업데이트 기록을 불러오는 중...</div>';
 
     const releases = await fetchReleases();
     if (!releases || !releases.length) {
-      body.innerHTML = '<div class="update-release-empty"><i class="ri-history-line" style="font-size:32px;display:block;margin-bottom:8px"></i>???낆몥??袁⑤콦 ????????怨룸????덈펲</div>';
+      body.innerHTML = '<div class="update-release-empty"><i class="ri-history-line" style="font-size:32px;display:block;margin-bottom:8px"></i>표시할 릴리스 노트가 없습니다</div>';
       return;
     }
 
     body.innerHTML = releases.map((r, i) => {
       const date = new Date(r.published_at || r.created_at);
       const dateStr = `${date.getFullYear()}.${String(date.getMonth()+1).padStart(2,'0')}.${String(date.getDate()).padStart(2,'0')}`;
-      const badge = i === 0 ? '<span class="update-release-badge latest">嶺뚣끉裕??/span>' : '';
-      const bodyHtml = r.body ? formatReleaseBody(r.body) : (r.name || '?곌떠?????????怨몃쾳');
+      const badge = i === 0 ? '<span class="update-release-badge latest">최신</span>' : '';
+      const bodyHtml = r.body ? formatReleaseBody(r.body) : (r.name || '설명 없음');
       return `
         <div class="update-release">
           <div class="update-release-header">
@@ -2075,12 +2076,12 @@ async function init() {
 
   window.__showUpdateHistory = showUpdateHistory;
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Quick Bookmark (Ctrl+D) ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Quick Bookmark (Ctrl+D) ──
   window.__quickBookmark = () => {
     const tab = dynTabs.find(t => t.id === activeDynTabId);
     if (!tab) { openAddBookmark(); return; }
-    document.getElementById('bookmark-modal-title').textContent = '??伊???釉뚮궙壤???怨뺣뼺?';
-    document.getElementById('bm-submit-btn').textContent = '?怨뺣뼺?';
+    document.getElementById('bookmark-modal-title').textContent = '현재 탭을 북마크에 추가';
+    document.getElementById('bm-submit-btn').textContent = '추가';
     document.getElementById('bookmark-form').reset();
     document.getElementById('bm-edit-id').value = '';
     document.getElementById('bm-title').value = tab.title || '';
@@ -2094,7 +2095,7 @@ async function init() {
     UI.openModal('bookmark-modal');
   };
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Download Manager ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Download Manager ──
   const downloadItems = [];
   window.__onDownload = (channel, data) => {
     if (channel === 'download-started') {
@@ -2127,7 +2128,7 @@ async function init() {
       if (d.state === 'completed') {
         return `<div class="dl-item dl-done">
           <span class="dl-name">${name}</span>
-          <button class="dl-action" onclick="window.electronAPI?.downloadOpen('${d.path?.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">???⒱뵛</button>
+          <button class="dl-action" onclick="window.electronAPI?.downloadOpen('${d.path?.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">열기</button>
           <button class="dl-action" onclick="window.electronAPI?.downloadShow('${d.path?.replace(/\\/g, '\\\\').replace(/'/g, "\\\\'")}')">Show</button>
         </div>`;
       }
@@ -2135,7 +2136,7 @@ async function init() {
     }).join('') + `<button class="dl-close" onclick="document.getElementById('download-bar').classList.add('hidden')">Close</button>`;
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Command Palette (Ctrl+K) + Tab Search (Ctrl+Shift+A) ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Command Palette (Ctrl+K) + Tab Search (Ctrl+Shift+A) ──
   const visitHistory = [];
   window.__commandPalette = (mode) => {
     let overlay = document.getElementById('cmd-palette');
@@ -2143,7 +2144,7 @@ async function init() {
       overlay = document.createElement('div');
       overlay.id = 'cmd-palette';
       overlay.className = 'cmd-palette-overlay';
-      overlay.innerHTML = `<div class="cmd-palette"><input type="text" id="cmd-input" placeholder="?? ?釉뚮궙壤?? ???떷??롪틵???.." autocomplete="off" /><div id="cmd-results" class="cmd-results"></div></div>`;
+      overlay.innerHTML = `<div class="cmd-palette"><input type="text" id="cmd-input" placeholder="탭, 북마크, 명령어 검색..." autocomplete="off" /><div id="cmd-results" class="cmd-results"></div></div>`;
       document.body.appendChild(overlay);
       overlay.addEventListener('click', (e) => { if (e.target === overlay) window.__closeCommandPalette(); });
       document.getElementById('cmd-input').addEventListener('input', () => renderPaletteResults());
@@ -2160,7 +2161,7 @@ async function init() {
     overlay.classList.remove('hidden');
     const input = document.getElementById('cmd-input');
     input.value = '';
-    input.placeholder = mode === 'tabs' ? '????????롪틵???..' : '?? ?釉뚮궙壤?? ???떷??롪틵???..';
+    input.placeholder = mode === 'tabs' ? '열린 탭 검색...' : '탭, 북마크, 명령어 검색...';
     input.dataset.mode = mode || 'all';
     input.focus();
     renderPaletteResults();
@@ -2188,8 +2189,8 @@ async function init() {
         }
       });
       const actions = [
-        { label: '???????⒱뵛', icon: 'ri-add-line', action: () => { createDynTab('https://www.google.com', 'Google'); window.__closeCommandPalette(); }},
-        { label: '???깆젧 ???⒱뵛', icon: 'ri-settings-3-line', action: () => { openSettings(); window.__closeCommandPalette(); }},
+        { label: '새 탭 열기', icon: 'ri-add-line', action: () => { createDynTab('https://www.google.com', 'Google'); window.__closeCommandPalette(); }},
+        { label: '설정 열기', icon: 'ri-settings-3-line', action: () => { openSettings(); window.__closeCommandPalette(); }},
         { label: 'Lock screen', icon: 'ri-lock-line', action: () => { Auth.showLockScreen(); window.__closeCommandPalette(); }},
         { label: 'Split view', icon: 'ri-layout-column-line', action: () => { window.__toggleSplit?.(); window.__closeCommandPalette(); }},
         { label: 'Screenshot', icon: 'ri-screenshot-line', action: () => { window.__screenshot?.(); window.__closeCommandPalette(); }},
@@ -2204,7 +2205,7 @@ async function init() {
         <div class="cmd-result-text"><div class="cmd-result-label">${escapeHtml(it.label)}</div>${it.sub ? `<div class="cmd-result-sub">${escapeHtml(it.sub.slice(0, 60))}</div>` : ''}</div>
         <span class="cmd-result-type">${it.type === 'tab' ? 'Tab' : it.type === 'bookmark' ? 'Bookmark' : 'Action'}</span>
       </div>
-    `).join('') || '<div class="cmd-result-empty">?롪퍒?????怨몃쾳</div>';
+    `).join('') || '<div class="cmd-result-empty">결과가 없습니다</div>';
     results.querySelectorAll('.cmd-result-item').forEach((el, i) => {
       el.addEventListener('click', () => items[i]?.action());
       el.addEventListener('mouseenter', () => {
@@ -2214,7 +2215,7 @@ async function init() {
     });
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Split View (Ctrl+\) ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Split View (Ctrl+\\) ──
   window.__toggleSplit = () => {
     const framesContainer = document.getElementById('dynamic-tab-frames');
     const wrap = framesContainer?.querySelector('.dtf-frame-wrap');
@@ -2267,7 +2268,7 @@ async function init() {
     }
   };
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Tab Hibernation ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Tab Hibernation ──
   function startHibernation() {
     if (hibernateTimerId) clearInterval(hibernateTimerId);
     hibernateTimerId = setInterval(() => {
@@ -2290,12 +2291,12 @@ async function init() {
     }, 60000);
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Screenshot (Ctrl+Shift+S) ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Screenshot (Ctrl+Shift+S) ──
   window.__screenshot = async () => {
     if (!window.electronAPI?.captureWebview) return;
     try {
       const dataUrl = await window.electronAPI.captureWebview();
-      if (!dataUrl) { UI.showToast('嶺뚢븞??뜎????덉넮', 'error'); return; }
+      if (!dataUrl) { UI.showToast('스크린샷을 가져오지 못했습니다', 'error'); return; }
       let overlay = document.getElementById('screenshot-overlay');
       if (!overlay) {
         overlay = document.createElement('div');
@@ -2312,7 +2313,7 @@ async function init() {
             canvas.getContext('2d').drawImage(img, 0, 0);
             canvas.toBlob(blob => { navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]); });
             UI.showToast('Copied to clipboard.', 'success');
-          } catch { UI.showToast('?곌랜踰딀쾮????덉넮', 'error'); }
+          } catch { UI.showToast('복사에 실패했습니다', 'error'); }
         });
         document.getElementById('ss-save').addEventListener('click', () => {
           const a = document.createElement('a');
@@ -2324,10 +2325,10 @@ async function init() {
       }
       document.getElementById('ss-preview').src = dataUrl;
       overlay.classList.remove('hidden');
-    } catch { UI.showToast('嶺뚢븞??뜎????덉넮', 'error'); }
+    } catch { UI.showToast('스크린샷을 가져오지 못했습니다', 'error'); }
   };
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??URL Notes ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── URL Notes ──
   function showUrlNotePopover() {
     const tab = dynTabs.find(t => t.id === activeDynTabId);
     if (!tab) return;
@@ -2366,7 +2367,7 @@ async function init() {
     if (!pop.classList.contains('hidden')) document.getElementById('url-note-text').focus();
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Picture-in-Picture ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Picture-in-Picture ──
   window.__pip = async () => {
     if (!window.electronAPI?.pipCreate) return;
     const tab = dynTabs.find(t => t.id === activeDynTabId);
@@ -2375,12 +2376,12 @@ async function init() {
     await window.electronAPI.pipCreate({ url: tab.url, partition });
   };
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Browser View (Dynamic Tabs) ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Browser View (Dynamic Tabs) ──
 
   const isElectron = /electron/i.test(navigator.userAgent);
   const closedTabHistory = [];
 
-  // ???? Chrome-like Global Shortcuts ????
+  // Chrome-like Global Shortcuts
   window.__newTab = () => createDynTab('https://www.google.com', 'Google');
   window.__closeActiveTab = () => { if (activeDynTabId != null) closeDynTab(activeDynTabId); };
   window.__reopenClosedTab = () => {
@@ -2422,11 +2423,11 @@ async function init() {
       bar.id = 'find-bar';
       bar.className = 'find-bar';
       bar.innerHTML = `
-        <input type="text" id="find-bar-input" placeholder="??瑜곷턄嶺뚯솘??????嶺뚢돦堉먪뵳?.." autocomplete="off" />
+        <input type="text" id="find-bar-input" placeholder="페이지에서 찾기..." autocomplete="off" />
         <span id="find-bar-count" class="find-bar-count"></span>
-        <button class="find-bar-btn" id="find-bar-prev" title="??怨몄쓧 (Shift+Enter)"><i class="ri-arrow-up-s-line"></i></button>
-        <button class="find-bar-btn" id="find-bar-next" title="???깅쾳 (Enter)"><i class="ri-arrow-down-s-line"></i></button>
-        <button class="find-bar-btn" id="find-bar-close" title="???뗢뵛 (Esc)"><i class="ri-close-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-prev" title="이전 결과 (Shift+Enter)"><i class="ri-arrow-up-s-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-next" title="다음 결과 (Enter)"><i class="ri-arrow-down-s-line"></i></button>
+        <button class="find-bar-btn" id="find-bar-close" title="닫기 (Esc)"><i class="ri-close-line"></i></button>
       `;
       const toolbar = framesContainer.querySelector('.dtf-toolbar');
       if (toolbar) toolbar.after(bar);
@@ -2491,13 +2492,13 @@ async function init() {
     const tab = dynTabs.find(t => t.id === tabId);
     if (!tab) return;
     menu.innerHTML = `
-      <div class="tcm-item" data-action="reload"><i class="ri-refresh-line"></i> ???됱Ŧ??μ쪠??/div>
-      <div class="tcm-item" data-action="duplicate"><i class="ri-file-copy-line"></i> ???곌랜踰??/div>
-      <div class="tcm-item" data-action="pin"><i class="ri-pushpin-line"></i> ????μ쪠??/div>
+      <div class="tcm-item" data-action="reload"><i class="ri-refresh-line"></i> 새로고침</div>
+      <div class="tcm-item" data-action="duplicate"><i class="ri-file-copy-line"></i> 탭 복제</div>
+      <div class="tcm-item" data-action="pin"><i class="ri-pushpin-line"></i> 탭 고정</div>
       <div class="tcm-divider"></div>
-      <div class="tcm-item" data-action="close"><i class="ri-close-line"></i> ?????뗢뵛</div>
-      <div class="tcm-item" data-action="close-others"><i class="ri-close-circle-line"></i> ???섎???嶺뚮ㅄ維筌????뗢뵛</div>
-      <div class="tcm-item" data-action="close-right"><i class="ri-skip-right-line"></i> ???섎꿰춯???嶺뚮ㅄ維筌????뗢뵛</div>
+      <div class="tcm-item" data-action="close"><i class="ri-close-line"></i> 탭 닫기</div>
+      <div class="tcm-item" data-action="close-others"><i class="ri-close-circle-line"></i> 다른 탭 닫기</div>
+      <div class="tcm-item" data-action="close-right"><i class="ri-skip-right-line"></i> 오른쪽 탭 닫기</div>
     `;
     menu.style.left = x + 'px';
     menu.style.top = y + 'px';
@@ -2580,7 +2581,7 @@ async function init() {
       input.value = '';
       Auth.resetActivity();
     } else {
-      document.getElementById('lock-error').textContent = 'PIN??????紐?? ???용????덈펲';
+      document.getElementById('lock-error').textContent = 'PIN이 올바르지 않습니다';
       document.getElementById('lock-error').classList.remove('hidden');
       input.value = '';
       input.focus();
@@ -2601,7 +2602,7 @@ async function init() {
       );
       showDashboard();
     } catch (err) {
-      errEl.textContent = err.message === 'Invalid credentials' ? '?熬곣뫗逾?????裕??????뺢퀡???먯쾸? ????紐?? ???용????덈펲' : err.message;
+      errEl.textContent = err.message === 'Invalid credentials' ? '아이디 또는 비밀번호를 확인해 주세요' : err.message;
       errEl.classList.remove('hidden');
     } finally { UI.setLoading(btn, false); }
   }
@@ -2617,12 +2618,12 @@ async function init() {
           display_name: document.getElementById('setup-display').value.trim(),
         }),
       });
-      UI.showToast('??㉱?洹먮봿????ｌ뫒?????諛댁뎽??琉????鍮?? ?β돦裕?????怨삵룖?筌뤾쑴??', 'success');
+      UI.showToast('관리자 계정이 생성되었습니다. 로그인해 주세요.', 'success');
       document.getElementById('setup-section').classList.add('hidden');
     } catch (err) { UI.showToast(err.message, 'error'); }
   }
 
-  // ??믊삳쫫??믊삳쫫??믊삳쫫??Event Bindings ??믊삳쫫??믊삳쫫??믊삳쫫??
+  // ── Event Bindings ──
 
   document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('keydown', (e) => {
