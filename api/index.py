@@ -44,6 +44,7 @@ from lib.models import (
     TeamUpdate,
     ClientCreate,
     ClientUpdate,
+    ClientReorderRequest,
     ShortcutCreate,
     ShortcutUpdate,
 )
@@ -95,6 +96,60 @@ async def get_admin_user(user=Depends(get_current_user)):
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     return user
+
+
+CLIENT_STATUSES = {"active", "pending", "paused", "closed"}
+
+
+def _explicit_model_data(model):
+    return {field: getattr(model, field) for field in model.model_fields_set}
+
+
+def _normalize_client_status(status: str) -> str:
+    normalized = (status or "active").strip().lower()
+    if normalized not in CLIENT_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid client status")
+    return normalized
+
+
+def _require_client_exists(client_id: str):
+    db = get_supabase()
+    client = db.table("clients").select("id").eq("id", client_id).execute()
+    if not client.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return client.data[0]
+
+
+def _serialize_client_row(row, include_password: bool = False):
+    data = dict(row)
+    data["status"] = data.get("status") or "active"
+    if include_password:
+        data["gyeongli_pw"] = _decrypt(data.get("gyeongli_pw_encrypted") or "")
+    data.pop("gyeongli_pw_encrypted", None)
+    return data
+
+
+def _get_next_client_sort_order():
+    db = get_supabase()
+    result = db.table("clients").select("sort_order").order("sort_order", desc=True).limit(1).execute()
+    if not result.data:
+        return 0
+    current = result.data[0].get("sort_order")
+    return int(current or 0) + 1
+
+
+def _timeline_timestamp(row, *fields):
+    for field in fields:
+        value = row.get(field)
+        if value:
+            return value
+    start_date = row.get("start_date")
+    if start_date:
+        start_time = row.get("start_time") or "00:00:00"
+        if len(start_time) == 5:
+            start_time = f"{start_time}:00"
+        return f"{start_date}T{start_time}"
+    return ""
 
 
 def _is_disallowed_outbound_host(hostname: str) -> bool:
@@ -289,6 +344,8 @@ async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
     db = get_supabase()
     if req.is_shared and not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Only admins can create shared bookmarks")
+    if req.client_id:
+        _require_client_exists(req.client_id)
     data = {
         "user_id": user["sub"],
         "title": req.title,
@@ -301,6 +358,7 @@ async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
         "is_shared": req.is_shared,
         "open_mode": req.open_mode,
         "is_pinned": req.is_pinned,
+        "client_id": req.client_id,
     }
     result = db.table("bookmarks").insert(data).execute()
     return result.data[0]
@@ -311,12 +369,14 @@ async def update_bookmark(
     bookmark_id: str, req: BookmarkUpdate, user=Depends(get_current_user)
 ):
     db = get_supabase()
-    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    data = _explicit_model_data(req)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     if "is_shared" in data and not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Only admins can change shared status")
+    if data.get("client_id"):
+        _require_client_exists(data["client_id"])
 
     result = (
         db.table("bookmarks")
@@ -813,7 +873,7 @@ async def get_events(year: int, month: int, user=Depends(get_current_user)):
 async def create_event(req: EventCreate, user=Depends(get_current_user)):
     db = get_supabase()
     if req.client_id:
-        _require_client_in_user_team(user, req.client_id)
+        _require_client_exists(req.client_id)
     data = {
         "user_id": user["sub"],
         "title": req.title,
@@ -840,12 +900,12 @@ async def update_event(
     event_id: str, req: EventUpdate, user=Depends(get_current_user)
 ):
     db = get_supabase()
-    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    data = _explicit_model_data(req)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     if "client_id" in data and data["client_id"]:
-        _require_client_in_user_team(user, data["client_id"])
+        _require_client_exists(data["client_id"])
 
     if "description" in data and (req.recurrence_type or data.get("recurrence_type")):
         existing = (
@@ -1075,95 +1135,87 @@ def _decrypt(token: str) -> str:
         return ""
 
 
-def _get_user_team_id(user) -> str:
-    db = get_supabase()
-    u = db.table("users").select("team_id").eq("id", user["sub"]).execute()
-    if not u.data or not u.data[0].get("team_id"):
-        raise HTTPException(status_code=403, detail="No team assigned")
-    return u.data[0]["team_id"]
-
-
-def _require_client_in_user_team(user, client_id: str) -> str:
-    team_id = _get_user_team_id(user)
-    db = get_supabase()
-    client = (
-        db.table("clients")
-        .select("id")
-        .eq("id", client_id)
-        .eq("team_id", team_id)
-        .execute()
-    )
-    if not client.data:
-        raise HTTPException(status_code=404, detail="Client not found")
-    return team_id
-
-
 @app.get("/api/clients")
 async def list_clients(user=Depends(get_current_user)):
-    team_id = _get_user_team_id(user)
     db = get_supabase()
     result = (
         db.table("clients")
-        .select("id, name, gyeongli_id, memo, created_at")
-        .eq("team_id", team_id)
+        .select("*")
+        .order("sort_order")
         .order("name")
         .execute()
     )
-    return result.data
+    return [_serialize_client_row(row) for row in result.data]
 
 
 @app.get("/api/clients/{client_id}")
 async def get_client(client_id: str, user=Depends(get_current_user)):
-    team_id = _get_user_team_id(user)
     db = get_supabase()
     result = (
         db.table("clients")
         .select("*")
         .eq("id", client_id)
-        .eq("team_id", team_id)
         .execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Client not found")
-    client = result.data[0]
-    client["gyeongli_pw"] = _decrypt(client.get("gyeongli_pw_encrypted") or "")
-    client.pop("gyeongli_pw_encrypted", None)
-    return client
+    return _serialize_client_row(result.data[0], include_password=True)
 
 
 @app.post("/api/clients")
 async def create_client(req: ClientCreate, user=Depends(get_current_user)):
-    team_id = _get_user_team_id(user)
     db = get_supabase()
+    status = _normalize_client_status(req.status)
     data = {
-        "team_id": team_id,
         "name": req.name,
+        "status": status,
+        "owner_name": req.owner_name or None,
+        "phone": req.phone or None,
+        "email": req.email or None,
         "gyeongli_id": req.gyeongli_id or "",
         "gyeongli_pw_encrypted": _encrypt(req.gyeongli_pw or ""),
         "memo": req.memo or "",
-        "created_by": user["sub"],
+        "last_contact_at": req.last_contact_at,
+        "next_action_title": req.next_action_title or None,
+        "next_action_at": req.next_action_at,
+        "sort_order": req.sort_order if req.sort_order is not None else _get_next_client_sort_order(),
     }
     result = db.table("clients").insert(data).execute()
-    row = result.data[0]
-    row.pop("gyeongli_pw_encrypted", None)
-    return row
+    return _serialize_client_row(result.data[0])
 
 
 @app.put("/api/clients/{client_id}")
 async def update_client(
     client_id: str, req: ClientUpdate, user=Depends(get_current_user)
 ):
-    team_id = _get_user_team_id(user)
+    _require_client_exists(client_id)
     db = get_supabase()
+    raw = _explicit_model_data(req)
     data = {}
-    if req.name is not None:
-        data["name"] = req.name
-    if req.gyeongli_id is not None:
-        data["gyeongli_id"] = req.gyeongli_id
-    if req.gyeongli_pw is not None:
-        data["gyeongli_pw_encrypted"] = _encrypt(req.gyeongli_pw)
-    if req.memo is not None:
-        data["memo"] = req.memo
+    if "name" in raw:
+        data["name"] = raw["name"]
+    if "status" in raw:
+        data["status"] = _normalize_client_status(raw["status"])
+    if "owner_name" in raw:
+        data["owner_name"] = raw["owner_name"] or None
+    if "phone" in raw:
+        data["phone"] = raw["phone"] or None
+    if "email" in raw:
+        data["email"] = raw["email"] or None
+    if "gyeongli_id" in raw:
+        data["gyeongli_id"] = raw["gyeongli_id"] or ""
+    if "gyeongli_pw" in raw:
+        data["gyeongli_pw_encrypted"] = _encrypt(raw["gyeongli_pw"] or "")
+    if "memo" in raw:
+        data["memo"] = raw["memo"] or ""
+    if "last_contact_at" in raw:
+        data["last_contact_at"] = raw["last_contact_at"]
+    if "next_action_title" in raw:
+        data["next_action_title"] = raw["next_action_title"] or None
+    if "next_action_at" in raw:
+        data["next_action_at"] = raw["next_action_at"]
+    if "sort_order" in raw:
+        data["sort_order"] = raw["sort_order"]
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
 
@@ -1171,25 +1223,38 @@ async def update_client(
         db.table("clients")
         .update(data)
         .eq("id", client_id)
-        .eq("team_id", team_id)
         .execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Client not found")
-    row = result.data[0]
-    row.pop("gyeongli_pw_encrypted", None)
-    return row
+    return _serialize_client_row(result.data[0])
+
+
+@app.patch("/api/clients/reorder")
+async def reorder_clients(req: ClientReorderRequest, user=Depends(get_current_user)):
+    db = get_supabase()
+    for item in req.items:
+        db.table("clients").update({"sort_order": item["sort_order"]}).eq(
+            "id", item["id"]
+        ).execute()
+    return {"message": "Reordered"}
 
 
 @app.delete("/api/clients/{client_id}")
 async def delete_client(client_id: str, user=Depends(get_current_user)):
-    team_id = _get_user_team_id(user)
+    _require_client_exists(client_id)
     db = get_supabase()
+    db.table("bookmarks").update({"client_id": None}).eq("client_id", client_id).execute()
+    db.table("events").update({"client_id": None}).eq("client_id", client_id).execute()
+    db.table("memos").update({"client_id": None}).eq("client_id", client_id).execute()
+    try:
+        db.table("client_shortcuts").delete().eq("client_id", client_id).execute()
+    except Exception:
+        pass
     result = (
         db.table("clients")
         .delete()
         .eq("id", client_id)
-        .eq("team_id", team_id)
         .execute()
     )
     if not result.data:
@@ -1197,9 +1262,109 @@ async def delete_client(client_id: str, user=Depends(get_current_user)):
     return {"message": "Deleted"}
 
 
+@app.get("/api/clients/{client_id}/timeline")
+async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
+    _require_client_exists(client_id)
+    db = get_supabase()
+    uid = user["sub"]
+
+    own_bookmarks = (
+        db.table("bookmarks")
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("user_id", uid)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    shared_bookmarks = (
+        db.table("bookmarks")
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("is_shared", True)
+        .neq("user_id", uid)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    events = (
+        db.table("events")
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("user_id", uid)
+        .order("start_date", desc=True)
+        .order("start_time", desc=True)
+        .execute()
+    )
+    memos = (
+        db.table("memos")
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("user_id", uid)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+
+    items = []
+    for bookmark in [*own_bookmarks.data, *shared_bookmarks.data]:
+        updated_at = _timeline_timestamp(bookmark, "updated_at", "created_at")
+        items.append(
+            {
+                "id": f"bookmark:{bookmark['id']}",
+                "entity_type": "bookmark",
+                "action": "created",
+                "label": "북마크 등록",
+                "title": bookmark.get("title") or "북마크",
+                "description": bookmark.get("url") or "",
+                "occurred_at": updated_at,
+                "related_id": bookmark["id"],
+                "is_shared": bool(bookmark.get("is_shared")),
+            }
+        )
+
+    for memo in memos.data:
+        created_at = memo.get("created_at")
+        updated_at = memo.get("updated_at") or created_at
+        is_updated = bool(created_at and updated_at and created_at != updated_at)
+        items.append(
+            {
+                "id": f"memo:{memo['id']}",
+                "entity_type": "memo",
+                "action": "updated" if is_updated else "created",
+                "label": "메모 수정" if is_updated else "메모 작성",
+                "title": memo.get("title") or "메모",
+                "description": memo.get("content") or "",
+                "occurred_at": updated_at or created_at or "",
+                "related_id": memo["id"],
+            }
+        )
+
+    for event in events.data:
+        occurred_at = _timeline_timestamp(event, "updated_at", "created_at")
+        items.append(
+            {
+                "id": f"event:{event['id']}",
+                "entity_type": "event",
+                "action": "completed" if event.get("is_done") else "created",
+                "label": "업무 완료"
+                if event.get("is_done") and event.get("is_task")
+                else "일정 생성",
+                "title": event.get("title") or "일정",
+                "description": event.get("description") or "",
+                "occurred_at": occurred_at,
+                "related_id": event["id"],
+                "start_date": event.get("start_date"),
+                "start_time": event.get("start_time"),
+                "is_task": bool(event.get("is_task")),
+                "is_done": bool(event.get("is_done")),
+            }
+        )
+
+    items.sort(key=lambda item: item.get("occurred_at") or "", reverse=True)
+    return items[:100]
+
+
 @app.get("/api/clients/{client_id}/events")
 async def get_client_events(client_id: str, user=Depends(get_current_user)):
-    _require_client_in_user_team(user, client_id)
+    _require_client_exists(client_id)
     db = get_supabase()
     result = (
         db.table("events")
@@ -1217,7 +1382,7 @@ async def get_client_events(client_id: str, user=Depends(get_current_user)):
 
 @app.get("/api/clients/{client_id}/shortcuts")
 async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
-    _require_client_in_user_team(user, client_id)
+    _require_client_exists(client_id)
     db = get_supabase()
     result = (
         db.table("client_shortcuts")
@@ -1233,7 +1398,7 @@ async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
 async def create_shortcut(
     client_id: str, req: ShortcutCreate, user=Depends(get_current_user)
 ):
-    _require_client_in_user_team(user, client_id)
+    _require_client_exists(client_id)
     db = get_supabase()
     data = {
         "client_id": client_id,
@@ -1253,7 +1418,7 @@ async def update_shortcut(
     req: ShortcutUpdate,
     user=Depends(get_current_user),
 ):
-    _require_client_in_user_team(user, client_id)
+    _require_client_exists(client_id)
     db = get_supabase()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
@@ -1274,7 +1439,7 @@ async def update_shortcut(
 async def delete_shortcut(
     client_id: str, shortcut_id: str, user=Depends(get_current_user)
 ):
-    _require_client_in_user_team(user, client_id)
+    _require_client_exists(client_id)
     db = get_supabase()
     result = (
         db.table("client_shortcuts")
@@ -1308,11 +1473,14 @@ async def get_memos(user=Depends(get_current_user)):
 @app.post("/api/memos")
 async def create_memo(req: MemoCreate, user=Depends(get_current_user)):
     db = get_supabase()
+    if req.client_id:
+        _require_client_exists(req.client_id)
     data = {
         "user_id": user["sub"],
         "title": req.title,
         "content": req.content,
         "color": req.color,
+        "client_id": req.client_id,
     }
     result = db.table("memos").insert(data).execute()
     return result.data[0]
@@ -1323,7 +1491,11 @@ async def update_memo(
     memo_id: str, req: MemoUpdate, user=Depends(get_current_user)
 ):
     db = get_supabase()
-    data = {k: v for k, v in req.model_dump().items() if v is not None}
+    data = _explicit_model_data(req)
+    if not data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    if data.get("client_id"):
+        _require_client_exists(data["client_id"])
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     result = (
         db.table("memos")
@@ -1372,4 +1544,3 @@ async def toggle_pin_memo(memo_id: str, user=Depends(get_current_user)):
         .execute()
     )
     return result.data[0]
-

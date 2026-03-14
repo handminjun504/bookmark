@@ -24,6 +24,7 @@ class BookmarkCreate(BaseModel):
     is_shared: bool = False
     open_mode: str = "auto"
     is_pinned: bool = False
+    client_id: Optional[str] = None
 
 
 class BookmarkUpdate(BaseModel):
@@ -37,6 +38,7 @@ class BookmarkUpdate(BaseModel):
     is_shared: Optional[bool] = None
     open_mode: Optional[str] = None
     is_pinned: Optional[bool] = None
+    client_id: Optional[str] = None
 
 
 class ReorderRequest(BaseModel):
@@ -116,6 +118,7 @@ class MemoCreate(BaseModel):
     title: str = ""
     content: str = ""
     color: str = "#FFFFFF"
+    client_id: Optional[str] = None
 
 
 class MemoUpdate(BaseModel):
@@ -123,6 +126,7 @@ class MemoUpdate(BaseModel):
     content: Optional[str] = None
     color: Optional[str] = None
     is_pinned: Optional[bool] = None
+    client_id: Optional[str] = None
 
 
 class TeamCreate(BaseModel):
@@ -137,16 +141,36 @@ class TeamUpdate(BaseModel):
 
 class ClientCreate(BaseModel):
     name: str
+    status: str = "active"
+    owner_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
     gyeongli_id: Optional[str] = None
     gyeongli_pw: Optional[str] = None
     memo: Optional[str] = None
+    last_contact_at: Optional[str] = None
+    next_action_title: Optional[str] = None
+    next_action_at: Optional[str] = None
+    sort_order: Optional[int] = None
 
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
+    status: Optional[str] = None
+    owner_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
     gyeongli_id: Optional[str] = None
     gyeongli_pw: Optional[str] = None
     memo: Optional[str] = None
+    last_contact_at: Optional[str] = None
+    next_action_title: Optional[str] = None
+    next_action_at: Optional[str] = None
+    sort_order: Optional[int] = None
+
+
+class ClientReorderRequest(BaseModel):
+    items: list
 
 
 class ShortcutCreate(BaseModel):
