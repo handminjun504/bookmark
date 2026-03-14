@@ -1,5 +1,5 @@
 import httpx
-from lib.config import SUPABASE_URL, SUPABASE_KEY
+from lib.config import SUPABASE_URL, SUPABASE_DB_KEY
 
 
 def _pg_value(val):
@@ -158,5 +158,5 @@ _client = None
 def get_supabase():
     global _client
     if _client is None:
-        _client = SupabaseTable(SUPABASE_URL, SUPABASE_KEY)
+        _client = SupabaseTable(SUPABASE_URL, SUPABASE_DB_KEY)
     return _client

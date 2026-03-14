@@ -13,6 +13,7 @@ def _required_env(name: str) -> str:
 
 SUPABASE_URL = _required_env("SUPABASE_URL")
 SUPABASE_KEY = _required_env("SUPABASE_KEY")
+SUPABASE_DB_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or SUPABASE_KEY
 JWT_SECRET = _required_env("JWT_SECRET")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
