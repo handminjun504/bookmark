@@ -438,6 +438,7 @@ async def login(req: LoginRequest):
             "lock_timeout": user["lock_timeout"],
             "pin_code": user["pin_code"],
             "team_id": user.get("team_id"),
+            "subteam_name": user.get("subteam_name"),
         },
     }
 
@@ -488,6 +489,7 @@ async def auto_login(req: AutoLoginRequest):
             "lock_timeout": user["lock_timeout"],
             "pin_code": user["pin_code"],
             "team_id": user.get("team_id"),
+            "subteam_name": user.get("subteam_name"),
         },
     }
 
@@ -873,7 +875,7 @@ async def list_users(admin=Depends(get_admin_user)):
     db = get_supabase()
     result = (
         db.table("users")
-        .select("id, username, display_name, is_admin, team_id, created_at")
+        .select("id, username, display_name, is_admin, team_id, subteam_name, created_at")
         .order("created_at")
         .execute()
     )
@@ -891,9 +893,11 @@ async def create_user(req: UserCreate, admin=Depends(get_admin_user)):
         "username": req.username,
         "password_hash": hash_password(req.password),
         "display_name": req.display_name,
+        "subteam_name": None,
     }
     if req.team_id:
         data["team_id"] = req.team_id
+        data["subteam_name"] = (req.subteam_name or "").strip() or None
 
     result = db.table("users").insert(data).execute()
     return {
@@ -901,6 +905,7 @@ async def create_user(req: UserCreate, admin=Depends(get_admin_user)):
         "username": req.username,
         "display_name": req.display_name,
         "team_id": result.data[0].get("team_id"),
+        "subteam_name": result.data[0].get("subteam_name"),
     }
 
 
@@ -1302,17 +1307,23 @@ async def delete_team(team_id: str, admin=Depends(get_admin_user)):
 async def assign_user_team(user_id: str, req: dict, admin=Depends(get_admin_user)):
     db = get_supabase()
     team_id = req.get("team_id")
+    subteam_name = str(req.get("subteam_name") or "").strip() or None
 
     if team_id:
         team = db.table("teams").select("id").eq("id", team_id).execute()
         if not team.data:
             raise HTTPException(status_code=404, detail="Team not found")
 
-    updated = db.table("users").update({"team_id": team_id}).eq("id", user_id).execute()
+    updated = (
+        db.table("users")
+        .update({"team_id": team_id, "subteam_name": subteam_name if team_id else None})
+        .eq("id", user_id)
+        .execute()
+    )
     if not updated.data:
         raise HTTPException(status_code=404, detail="User not found")
 
-    return {"message": "Team assigned"}
+    return updated.data[0]
 
 
 # ?? Clients (嫄곕옒泥? ??

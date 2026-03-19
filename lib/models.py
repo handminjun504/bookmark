@@ -60,6 +60,7 @@ class UserCreate(BaseModel):
     password: str
     display_name: str
     team_id: Optional[str] = None
+    subteam_name: Optional[str] = None
 
 
 class SettingsUpdate(BaseModel):
