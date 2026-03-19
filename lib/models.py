@@ -102,6 +102,7 @@ class EventCreate(BaseModel):
     is_task: bool = False
     skip_weekend: bool = False
     calendar_type: Optional[str] = None
+    share_with_team: Optional[bool] = None
     client_id: Optional[str] = None
 
 
@@ -120,6 +121,7 @@ class EventUpdate(BaseModel):
     is_task: Optional[bool] = None
     skip_weekend: Optional[bool] = None
     calendar_type: Optional[str] = None
+    share_with_team: Optional[bool] = None
     client_id: Optional[str] = None
 
 

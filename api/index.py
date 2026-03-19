@@ -203,6 +203,10 @@ def _get_accessible_event_or_404(event_id: str, user) -> Dict[str, Any]:
     return row
 
 
+def _is_team_shared_work_event(row: Dict[str, Any]) -> bool:
+    return bool((row.get("calendar_type") or "personal") == "work" and row.get("team_id"))
+
+
 def _fetch_event_candidates(
     user,
     *,
@@ -242,6 +246,69 @@ def _fetch_event_candidates(
     for row in [*own_rows, *team_rows]:
         merged[row["id"]] = row
     return list(merged.values())
+
+
+def _fetch_client_accessible_events(client_id: str, user) -> List[Dict[str, Any]]:
+    db = get_supabase()
+    uid = user["sub"]
+    team_id = _get_request_user_team_id(user)
+
+    own_rows = (
+        db.table("events")
+        .select("*")
+        .eq("client_id", client_id)
+        .eq("user_id", uid)
+        .order("start_date", desc=True)
+        .order("start_time", desc=True)
+        .execute()
+        .data
+        or []
+    )
+
+    team_rows: List[Dict[str, Any]] = []
+    if team_id:
+        team_rows = (
+            db.table("events")
+            .select("*")
+            .eq("client_id", client_id)
+            .eq("calendar_type", "work")
+            .eq("team_id", team_id)
+            .neq("user_id", uid)
+            .order("start_date", desc=True)
+            .order("start_time", desc=True)
+            .execute()
+            .data
+            or []
+        )
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for row in [*own_rows, *team_rows]:
+        merged[row["id"]] = row
+    return list(merged.values())
+
+
+def _attach_event_owner_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    if not rows:
+        return rows
+    user_ids = sorted({row.get("user_id") for row in rows if row.get("user_id")})
+    if not user_ids:
+        return rows
+    db = get_supabase()
+    users = (
+        db.table("users")
+        .select("id,display_name,username")
+        .in_("id", user_ids)
+        .execute()
+        .data
+        or []
+    )
+    names = {
+        row["id"]: row.get("display_name") or row.get("username") or "사용자"
+        for row in users
+    }
+    for row in rows:
+        row["owner_display_name"] = names.get(row.get("user_id"), "사용자")
+    return rows
 
 
 def _filter_events_by_calendar_type(
@@ -1128,11 +1195,12 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
     calendar_type = _normalize_event_calendar_type(
         req.calendar_type or ("work" if req.is_task else "personal")
     )
-    if calendar_type == "work" and not team_id:
+    share_with_team = bool(req.share_with_team) if calendar_type == "work" else False
+    if share_with_team and not team_id:
         raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
     data = {
         "user_id": user["sub"],
-        "team_id": team_id if calendar_type == "work" else None,
+        "team_id": team_id if share_with_team else None,
         "calendar_type": calendar_type,
         "title": req.title,
         "start_date": req.start_date,
@@ -1169,17 +1237,22 @@ async def update_event(
 
     if "calendar_type" in data:
         calendar_type = _normalize_event_calendar_type(data["calendar_type"])
-        if calendar_type == "work" and not team_id:
-            raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
         data["calendar_type"] = calendar_type
-        data["team_id"] = team_id if calendar_type == "work" else None
     elif data.get("is_task") is True:
-        if not team_id:
-            raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
         data["calendar_type"] = "work"
-        data["team_id"] = team_id
-    elif (existing_row.get("calendar_type") or ("work" if existing_row.get("is_task") else "personal")) == "work":
-        data["team_id"] = existing_row.get("team_id") or team_id
+
+    effective_calendar_type = data.get("calendar_type") or (
+        existing_row.get("calendar_type") or ("work" if existing_row.get("is_task") else "personal")
+    )
+    share_with_team = data.pop("share_with_team", None)
+    if effective_calendar_type == "work":
+        if share_with_team is None:
+            share_with_team = _is_team_shared_work_event(existing_row)
+        if share_with_team and not team_id:
+            raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
+        data["team_id"] = team_id if share_with_team else None
+    else:
+        data["team_id"] = None
 
     if "recurrence_type" in data:
         recurrence_type = _normalize_recurrence_type(data.get("recurrence_type"))
@@ -1549,6 +1622,7 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
     _require_client_exists(client_id)
     db = get_supabase()
     uid = user["sub"]
+    current_user_name = user.get("display_name") or user.get("username")
 
     own_bookmarks = (
         db.table("bookmarks")
@@ -1567,15 +1641,7 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
         .order("created_at", desc=True)
         .execute()
     )
-    events = (
-        db.table("events")
-        .select("*")
-        .eq("client_id", client_id)
-        .eq("user_id", uid)
-        .order("start_date", desc=True)
-        .order("start_time", desc=True)
-        .execute()
-    )
+    event_rows = _attach_event_owner_names(_fetch_client_accessible_events(client_id, user))
     memos = (
         db.table("memos")
         .select("*")
@@ -1619,8 +1685,12 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
             }
         )
 
-    for event in events.data:
+    for event in event_rows:
         occurred_at = _timeline_timestamp(event, "updated_at", "created_at")
+        event_description = event.get("description") or ""
+        owner_name = event.get("owner_display_name")
+        if owner_name and owner_name != current_user_name:
+            event_description = f"담당자: {owner_name}" + (f"\n{event_description}" if event_description else "")
         items.append(
             {
                 "id": f"event:{event['id']}",
@@ -1630,13 +1700,15 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
                 if event.get("is_done") and event.get("is_task")
                 else "일정 생성",
                 "title": event.get("title") or "일정",
-                "description": event.get("description") or "",
+                "description": event_description,
                 "occurred_at": occurred_at,
                 "related_id": event["id"],
                 "start_date": event.get("start_date"),
                 "start_time": event.get("start_time"),
                 "is_task": bool(event.get("is_task")),
                 "is_done": bool(event.get("is_done")),
+                "owner_display_name": owner_name,
+                "is_team_shared": _is_team_shared_work_event(event),
             }
         )
 
@@ -1647,16 +1719,9 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
 @app.get("/api/clients/{client_id}/events")
 async def get_client_events(client_id: str, user=Depends(get_current_user)):
     _require_client_exists(client_id)
-    db = get_supabase()
-    result = (
-        db.table("events")
-        .select("*")
-        .eq("client_id", client_id)
-        .eq("user_id", user["sub"])
-        .order("start_date", desc=True)
-        .execute()
-    )
-    return result.data
+    rows = _attach_event_owner_names(_fetch_client_accessible_events(client_id, user))
+    rows.sort(key=lambda row: (row.get("start_date") or "", row.get("start_time") or ""), reverse=True)
+    return rows
 
 
 # ?? Client Shortcuts ??

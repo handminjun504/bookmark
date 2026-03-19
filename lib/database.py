@@ -81,6 +81,11 @@ class QueryBuilder:
         self._params.append((col, f"neq.{_pg_value(val)}"))
         return self
 
+    def in_(self, col, values):
+        serialized = ",".join(str(value) for value in values)
+        self._params.append((col, f"in.({serialized})"))
+        return self
+
     def gt(self, col, val):
         self._params.append((col, f"gt.{_pg_value(val)}"))
         return self
