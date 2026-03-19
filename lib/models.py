@@ -149,30 +149,52 @@ class ClientCreate(BaseModel):
     name: str
     status: str = "active"
     owner_name: Optional[str] = None
+    company_contact_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
-    gyeongli_id: Optional[str] = None
-    gyeongli_pw: Optional[str] = None
     memo: Optional[str] = None
     last_contact_at: Optional[str] = None
     next_action_title: Optional[str] = None
     next_action_at: Optional[str] = None
     sort_order: Optional[int] = None
+    client_code: Optional[str] = None
+    business_number: Optional[str] = None
+    ceo_name: Optional[str] = None
+    gyeongli_id: Optional[str] = None
+    gyeongli_pw: Optional[str] = None
+    gyeongli_password: Optional[str] = None
+    sheet_row_number: Optional[int] = None
+    sheet_extra_fields: Optional[Dict[str, Any]] = None
+    source_active: Optional[bool] = None
+    hidden_local: Optional[bool] = None
+    hidden_local_at: Optional[str] = None
+    last_synced_at: Optional[str] = None
 
 
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
     owner_name: Optional[str] = None
+    company_contact_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
-    gyeongli_id: Optional[str] = None
-    gyeongli_pw: Optional[str] = None
     memo: Optional[str] = None
     last_contact_at: Optional[str] = None
     next_action_title: Optional[str] = None
     next_action_at: Optional[str] = None
     sort_order: Optional[int] = None
+    client_code: Optional[str] = None
+    business_number: Optional[str] = None
+    ceo_name: Optional[str] = None
+    gyeongli_id: Optional[str] = None
+    gyeongli_pw: Optional[str] = None
+    gyeongli_password: Optional[str] = None
+    sheet_row_number: Optional[int] = None
+    sheet_extra_fields: Optional[Dict[str, Any]] = None
+    source_active: Optional[bool] = None
+    hidden_local: Optional[bool] = None
+    hidden_local_at: Optional[str] = None
+    last_synced_at: Optional[str] = None
 
 
 class ClientReorderRequest(BaseModel):

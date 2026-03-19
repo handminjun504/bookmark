@@ -5,6 +5,7 @@ import socket
 import ipaddress
 import traceback
 from datetime import datetime, timezone, date, timedelta
+from typing import Any, Dict, List
 from urllib.parse import urlparse
 from dateutil.relativedelta import relativedelta
 from holidayskr import is_holiday as kr_is_holiday, year_holidays as kr_year_holidays
@@ -17,6 +18,12 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
 from lib.database import get_supabase
+from lib.client_sheet_sync import (
+    CLIENT_SYNC_STATE,
+    get_client_schema_snapshot,
+    serialize_client_row,
+    sync_clients_from_sheet,
+)
 from lib.auth import (
     hash_password,
     verify_password,
@@ -127,10 +134,13 @@ def _require_client_exists(client_id: str):
 
 
 def _serialize_client_row(row, include_password: bool = False):
-    data = dict(row)
-    data["status"] = data.get("status") or "active"
+    data = serialize_client_row(row)
+    decrypted_password = _decrypt(data.get("gyeongli_pw_encrypted") or "")
     if include_password:
-        data["gyeongli_pw"] = _decrypt(data.get("gyeongli_pw_encrypted") or "")
+        data["gyeongli_pw"] = decrypted_password
+        data["gyeongli_password"] = decrypted_password
+    else:
+        data["gyeongli_password"] = ""
     data.pop("gyeongli_pw_encrypted", None)
     return data
 
@@ -1228,8 +1238,7 @@ def _decrypt(token: str) -> str:
         return ""
 
 
-@app.get("/api/clients")
-async def list_clients(user=Depends(get_current_user)):
+def _get_all_client_rows() -> List[Dict[str, Any]]:
     db = get_supabase()
     result = (
         db.table("clients")
@@ -1241,118 +1250,116 @@ async def list_clients(user=Depends(get_current_user)):
     return [_serialize_client_row(row) for row in result.data]
 
 
-@app.get("/api/clients/{client_id}")
-async def get_client(client_id: str, user=Depends(get_current_user)):
+def _get_client_row_or_404(client_id: str) -> Dict[str, Any]:
     db = get_supabase()
-    result = (
-        db.table("clients")
-        .select("*")
-        .eq("id", client_id)
-        .execute()
-    )
+    result = db.table("clients").select("*").eq("id", client_id).limit(1).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Client not found")
     return _serialize_client_row(result.data[0], include_password=True)
 
 
-@app.post("/api/clients")
-async def create_client(req: ClientCreate, user=Depends(get_current_user)):
-    db = get_supabase()
-    status = _normalize_client_status(req.status)
-    data = {
-        "name": req.name,
-        "status": status,
-        "owner_name": req.owner_name or None,
-        "phone": req.phone or None,
-        "email": req.email or None,
-        "gyeongli_id": req.gyeongli_id or "",
-        "gyeongli_pw_encrypted": _encrypt(req.gyeongli_pw or ""),
-        "memo": req.memo or "",
-        "last_contact_at": req.last_contact_at,
-        "next_action_title": req.next_action_title or None,
-        "next_action_at": req.next_action_at,
-        "sort_order": req.sort_order if req.sort_order is not None else _get_next_client_sort_order(),
-    }
-    result = db.table("clients").insert(data).execute()
-    return _serialize_client_row(result.data[0])
+def _filter_visible_clients(
+    rows: List[Dict[str, Any]],
+    include_hidden: bool = False,
+    include_inactive: bool = False,
+) -> List[Dict[str, Any]]:
+    visible = []
+    for row in rows:
+        if not str(row.get("client_code") or "").strip():
+            continue
+        if not include_inactive and not row.get("source_active", True):
+            continue
+        if not include_hidden and row.get("hidden_local", False):
+            continue
+        visible.append(row)
+    return visible
 
 
-@app.put("/api/clients/{client_id}")
-async def update_client(
-    client_id: str, req: ClientUpdate, user=Depends(get_current_user)
+@app.get("/api/clients")
+async def list_clients(
+    include_hidden: bool = False,
+    include_inactive: bool = False,
+    user=Depends(get_current_user),
 ):
+    rows = _get_all_client_rows()
+    return _filter_visible_clients(rows, include_hidden=include_hidden, include_inactive=include_inactive)
+
+
+@app.get("/api/clients/schema")
+async def get_client_schema(user=Depends(get_current_user)):
+    return get_client_schema_snapshot(_get_all_client_rows())
+
+
+@app.post("/api/clients/sync")
+async def sync_clients(user=Depends(get_current_user)):
+    try:
+        return sync_clients_from_sheet(get_supabase(), encrypt_password=_encrypt)
+    except HTTPException as exc:
+        CLIENT_SYNC_STATE["last_error"] = str(exc.detail)
+        raise
+    except Exception as exc:
+        CLIENT_SYNC_STATE["last_error"] = str(exc)
+        raise HTTPException(status_code=502, detail=f"거래처 시트 동기화 실패: {exc}") from exc
+
+
+@app.get("/api/clients/{client_id}")
+async def get_client(client_id: str, user=Depends(get_current_user)):
+    return _get_client_row_or_404(client_id)
+
+
+@app.post("/api/clients/{client_id}/hide")
+async def hide_client(client_id: str, user=Depends(get_current_user)):
     _require_client_exists(client_id)
     db = get_supabase()
-    raw = _explicit_model_data(req)
-    data = {}
-    if "name" in raw:
-        data["name"] = raw["name"]
-    if "status" in raw:
-        data["status"] = _normalize_client_status(raw["status"])
-    if "owner_name" in raw:
-        data["owner_name"] = raw["owner_name"] or None
-    if "phone" in raw:
-        data["phone"] = raw["phone"] or None
-    if "email" in raw:
-        data["email"] = raw["email"] or None
-    if "gyeongli_id" in raw:
-        data["gyeongli_id"] = raw["gyeongli_id"] or ""
-    if "gyeongli_pw" in raw:
-        data["gyeongli_pw_encrypted"] = _encrypt(raw["gyeongli_pw"] or "")
-    if "memo" in raw:
-        data["memo"] = raw["memo"] or ""
-    if "last_contact_at" in raw:
-        data["last_contact_at"] = raw["last_contact_at"]
-    if "next_action_title" in raw:
-        data["next_action_title"] = raw["next_action_title"] or None
-    if "next_action_at" in raw:
-        data["next_action_at"] = raw["next_action_at"]
-    if "sort_order" in raw:
-        data["sort_order"] = raw["sort_order"]
-    if not data:
-        raise HTTPException(status_code=400, detail="No fields to update")
-
     result = (
         db.table("clients")
-        .update(data)
+        .update(
+            {
+                "hidden_local": True,
+                "hidden_local_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
         .eq("id", client_id)
         .execute()
     )
     if not result.data:
         raise HTTPException(status_code=404, detail="Client not found")
     return _serialize_client_row(result.data[0])
+
+
+@app.post("/api/clients/{client_id}/unhide")
+async def unhide_client(client_id: str, user=Depends(get_current_user)):
+    _require_client_exists(client_id)
+    db = get_supabase()
+    result = (
+        db.table("clients")
+        .update({"hidden_local": False, "hidden_local_at": None})
+        .eq("id", client_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return _serialize_client_row(result.data[0])
+
+
+@app.post("/api/clients")
+async def create_client(req: ClientCreate, user=Depends(get_current_user)):
+    raise HTTPException(status_code=405, detail="거래처 마스터는 Google Sheet 읽기 전용입니다")
+
+
+@app.put("/api/clients/{client_id}")
+async def update_client(client_id: str, req: ClientUpdate, user=Depends(get_current_user)):
+    raise HTTPException(status_code=405, detail="거래처 마스터는 Google Sheet 읽기 전용입니다")
 
 
 @app.patch("/api/clients/reorder")
 async def reorder_clients(req: ClientReorderRequest, user=Depends(get_current_user)):
-    db = get_supabase()
-    for item in req.items:
-        db.table("clients").update({"sort_order": item["sort_order"]}).eq(
-            "id", item["id"]
-        ).execute()
-    return {"message": "Reordered"}
+    raise HTTPException(status_code=405, detail="거래처 순서는 Google Sheet 기준으로 동기화됩니다")
 
 
 @app.delete("/api/clients/{client_id}")
 async def delete_client(client_id: str, user=Depends(get_current_user)):
-    _require_client_exists(client_id)
-    db = get_supabase()
-    db.table("bookmarks").update({"client_id": None}).eq("client_id", client_id).execute()
-    db.table("events").update({"client_id": None}).eq("client_id", client_id).execute()
-    db.table("memos").update({"client_id": None}).eq("client_id", client_id).execute()
-    try:
-        db.table("client_shortcuts").delete().eq("client_id", client_id).execute()
-    except Exception:
-        pass
-    result = (
-        db.table("clients")
-        .delete()
-        .eq("id", client_id)
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Client not found")
-    return {"message": "Deleted"}
+    return await hide_client(client_id, user=user)
 
 
 @app.get("/api/clients/{client_id}/timeline")
