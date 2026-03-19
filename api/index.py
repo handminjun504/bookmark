@@ -107,6 +107,7 @@ async def get_admin_user(user=Depends(get_current_user)):
 
 
 CLIENT_STATUSES = {"active", "pending", "paused", "closed"}
+EVENT_CALENDAR_TYPES = {"all", "personal", "work"}
 USER_PREFERENCES_DEFAULTS = {
     "client_view_state": {},
     "client_custom_view": None,
@@ -125,12 +126,111 @@ def _normalize_client_status(status: str) -> str:
     return normalized
 
 
+def _normalize_event_calendar_type(value: str, allow_all: bool = False) -> str:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return "all" if allow_all else "personal"
+    allowed = EVENT_CALENDAR_TYPES if allow_all else (EVENT_CALENDAR_TYPES - {"all"})
+    if normalized not in allowed:
+        raise HTTPException(status_code=400, detail="Invalid calendar type")
+    return normalized
+
+
 def _require_client_exists(client_id: str):
     db = get_supabase()
     client = db.table("clients").select("id").eq("id", client_id).execute()
     if not client.data:
         raise HTTPException(status_code=404, detail="Client not found")
     return client.data[0]
+
+
+def _get_request_user_team_id(user) -> str | None:
+    if user.get("team_id"):
+        return user.get("team_id")
+    db = get_supabase()
+    result = db.table("users").select("team_id").eq("id", user["sub"]).limit(1).execute()
+    if not result.data:
+        return None
+    return result.data[0].get("team_id")
+
+
+def _event_belongs_to_team_scope(row: Dict[str, Any], team_id: str | None) -> bool:
+    return bool(
+        team_id
+        and (row.get("calendar_type") or "personal") == "work"
+        and row.get("team_id") == team_id
+    )
+
+
+def _can_access_event(row: Dict[str, Any], user, team_id: str | None = None) -> bool:
+    if row.get("user_id") == user["sub"]:
+        return True
+    return _event_belongs_to_team_scope(row, team_id or _get_request_user_team_id(user))
+
+
+def _get_accessible_event_or_404(event_id: str, user) -> Dict[str, Any]:
+    db = get_supabase()
+    result = db.table("events").select("*").eq("id", event_id).limit(1).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Event not found")
+    row = result.data[0]
+    if not _can_access_event(row, user):
+        raise HTTPException(status_code=404, detail="Event not found")
+    return row
+
+
+def _fetch_event_candidates(
+    user,
+    *,
+    start_str: str,
+    end_str: str,
+    tasks_only: bool = False,
+) -> List[Dict[str, Any]]:
+    db = get_supabase()
+    uid = user["sub"]
+    team_id = _get_request_user_team_id(user)
+
+    own_query = (
+        db.table("events")
+        .select("*")
+        .eq("user_id", uid)
+        .lt("start_date", end_str)
+    )
+    if tasks_only:
+        own_query = own_query.eq("is_task", True)
+    own_rows = own_query.or_(f"start_date.gte.{start_str},recurrence_type.neq.null").order("start_date").order("start_time").execute().data or []
+
+    team_rows: List[Dict[str, Any]] = []
+    if team_id:
+        team_query = (
+            db.table("events")
+            .select("*")
+            .eq("calendar_type", "work")
+            .eq("team_id", team_id)
+            .neq("user_id", uid)
+            .lt("start_date", end_str)
+        )
+        if tasks_only:
+            team_query = team_query.eq("is_task", True)
+        team_rows = team_query.or_(f"start_date.gte.{start_str},recurrence_type.neq.null").order("start_date").order("start_time").execute().data or []
+
+    merged: Dict[str, Dict[str, Any]] = {}
+    for row in [*own_rows, *team_rows]:
+        merged[row["id"]] = row
+    return list(merged.values())
+
+
+def _filter_events_by_calendar_type(
+    rows: List[Dict[str, Any]],
+    calendar_type: str,
+) -> List[Dict[str, Any]]:
+    normalized = _normalize_event_calendar_type(calendar_type, allow_all=True)
+    if normalized == "all":
+        return rows
+    return [
+        row for row in rows
+        if (row.get("calendar_type") or ("work" if row.get("is_task") else "personal")) == normalized
+    ]
 
 
 def _serialize_client_row(row, include_password: bool = False):
@@ -937,8 +1037,12 @@ async def get_holidays(year: int):
 
 
 @app.get("/api/events")
-async def get_events(year: int, month: int, user=Depends(get_current_user)):
-    db = get_supabase()
+async def get_events(
+    year: int,
+    month: int,
+    calendar_type: str = "all",
+    user=Depends(get_current_user),
+):
     view_start = date(year, month, 1)
     if month == 12:
         view_end = date(year + 1, 1, 1)
@@ -948,19 +1052,13 @@ async def get_events(year: int, month: int, user=Depends(get_current_user)):
     start_str = view_start.isoformat()
     end_str = view_end.isoformat()
 
-    result = (
-        db.table("events")
-        .select("*")
-        .eq("user_id", user["sub"])
-        .lt("start_date", end_str)
-        .or_(f"start_date.gte.{start_str},recurrence_type.neq.null")
-        .order("start_date")
-        .order("start_time")
-        .execute()
+    candidate_rows = _filter_events_by_calendar_type(
+        _fetch_event_candidates(user, start_str=start_str, end_str=end_str, tasks_only=False),
+        calendar_type,
     )
 
-    recurring_only = [e for e in result.data if e.get("recurrence_type")]
-    non_recurring = [e for e in result.data if not e.get("recurrence_type")]
+    recurring_only = [e for e in candidate_rows if e.get("recurrence_type")]
+    non_recurring = [e for e in candidate_rows if not e.get("recurrence_type")]
 
     all_events = _expand_recurring(recurring_only, view_start, view_end)
     seen_ids = {(x["id"], x["start_date"]) for x in all_events}
@@ -977,8 +1075,16 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
     db = get_supabase()
     if req.client_id:
         _require_client_exists(req.client_id)
+    team_id = _get_request_user_team_id(user)
+    calendar_type = _normalize_event_calendar_type(
+        req.calendar_type or ("work" if req.is_task else "personal")
+    )
+    if calendar_type == "work" and not team_id:
+        raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
     data = {
         "user_id": user["sub"],
+        "team_id": team_id if calendar_type == "work" else None,
+        "calendar_type": calendar_type,
         "title": req.title,
         "start_date": req.start_date,
         "start_time": req.start_time,
@@ -1003,6 +1109,8 @@ async def update_event(
     event_id: str, req: EventUpdate, user=Depends(get_current_user)
 ):
     db = get_supabase()
+    existing_row = _get_accessible_event_or_404(event_id, user)
+    team_id = _get_request_user_team_id(user)
     data = _explicit_model_data(req)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -1010,12 +1118,25 @@ async def update_event(
     if "client_id" in data and data["client_id"]:
         _require_client_exists(data["client_id"])
 
+    if "calendar_type" in data:
+        calendar_type = _normalize_event_calendar_type(data["calendar_type"])
+        if calendar_type == "work" and not team_id:
+            raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
+        data["calendar_type"] = calendar_type
+        data["team_id"] = team_id if calendar_type == "work" else None
+    elif data.get("is_task") is True:
+        if not team_id:
+            raise HTTPException(status_code=400, detail="업무 일정은 팀에 속한 계정만 등록할 수 있습니다")
+        data["calendar_type"] = "work"
+        data["team_id"] = team_id
+    elif (existing_row.get("calendar_type") or ("work" if existing_row.get("is_task") else "personal")) == "work":
+        data["team_id"] = existing_row.get("team_id") or team_id
+
     if "description" in data and (req.recurrence_type or data.get("recurrence_type")):
         existing = (
             db.table("events")
             .select("description")
             .eq("id", event_id)
-            .eq("user_id", user["sub"])
             .execute()
         )
         if existing.data:
@@ -1031,7 +1152,6 @@ async def update_event(
         db.table("events")
         .update(data)
         .eq("id", event_id)
-        .eq("user_id", user["sub"])
         .execute()
     )
     if not result.data:
@@ -1045,11 +1165,11 @@ async def update_event(
 @app.delete("/api/events/{event_id}")
 async def delete_event(event_id: str, user=Depends(get_current_user)):
     db = get_supabase()
+    _get_accessible_event_or_404(event_id, user)
     result = (
         db.table("events")
         .delete()
         .eq("id", event_id)
-        .eq("user_id", user["sub"])
         .execute()
     )
     if not result.data:
@@ -1062,17 +1182,7 @@ async def toggle_event_done(
     event_id: str, target_date: str = None, user=Depends(get_current_user)
 ):
     db = get_supabase()
-    current = (
-        db.table("events")
-        .select("is_done,recurrence_type,description")
-        .eq("id", event_id)
-        .eq("user_id", user["sub"])
-        .execute()
-    )
-    if not current.data:
-        raise HTTPException(status_code=404, detail="Event not found")
-
-    row = current.data[0]
+    row = _get_accessible_event_or_404(event_id, user)
     if row.get("recurrence_type") and target_date:
         clean_desc, completed = _parse_completed_dates(row.get("description"))
         if target_date in completed:
@@ -1084,7 +1194,6 @@ async def toggle_event_done(
             db.table("events")
             .update({"description": new_desc})
             .eq("id", event_id)
-            .eq("user_id", user["sub"])
             .execute()
         )
         resp = dict(result.data[0])
@@ -1097,15 +1206,17 @@ async def toggle_event_done(
             db.table("events")
             .update({"is_done": new_val})
             .eq("id", event_id)
-            .eq("user_id", user["sub"])
             .execute()
         )
         return result.data[0]
 
 
 @app.get("/api/events/week")
-async def get_week_tasks(date_str: str = None, user=Depends(get_current_user)):
-    db = get_supabase()
+async def get_week_tasks(
+    date_str: str = None,
+    calendar_type: str = "all",
+    user=Depends(get_current_user),
+):
     if date_str:
         ref = date.fromisoformat(date_str)
     else:
@@ -1114,21 +1225,19 @@ async def get_week_tasks(date_str: str = None, user=Depends(get_current_user)):
     monday = ref - timedelta(days=ref.weekday())
     sunday = monday + timedelta(days=6)
 
-    result = (
-        db.table("events")
-        .select("*")
-        .eq("user_id", user["sub"])
-        .eq("is_task", True)
-        .lte("start_date", sunday.isoformat())
-        .or_(f"start_date.gte.{monday.isoformat()},recurrence_type.neq.null")
-        .order("start_date")
-        .order("start_time")
-        .execute()
+    candidate_rows = _filter_events_by_calendar_type(
+        _fetch_event_candidates(
+            user,
+            start_str=monday.isoformat(),
+            end_str=(sunday + timedelta(days=1)).isoformat(),
+            tasks_only=True,
+        ),
+        calendar_type,
     )
 
-    recurring = [e for e in result.data if e.get("recurrence_type")]
+    recurring = [e for e in candidate_rows if e.get("recurrence_type")]
     non_recurring = [
-        e for e in result.data
+        e for e in candidate_rows
         if not e.get("recurrence_type")
         and e["start_date"] >= monday.isoformat()
     ]
