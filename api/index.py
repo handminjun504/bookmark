@@ -108,6 +108,15 @@ async def get_admin_user(user=Depends(get_current_user)):
 
 CLIENT_STATUSES = {"active", "pending", "paused", "closed"}
 EVENT_CALENDAR_TYPES = {"all", "personal", "work"}
+EVENT_RECURRENCE_TYPES = {
+    "daily",
+    "weekly",
+    "monthly",
+    "quarterly",
+    "semi_annually",
+    "annually",
+    "yearly",
+}
 USER_PREFERENCES_DEFAULTS = {
     "client_view_state": {},
     "client_custom_view": None,
@@ -134,6 +143,21 @@ def _normalize_event_calendar_type(value: str, allow_all: bool = False) -> str:
     if normalized not in allowed:
         raise HTTPException(status_code=400, detail="Invalid calendar type")
     return normalized
+
+
+def _normalize_recurrence_type(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return None
+    if normalized == "yearly":
+        return "annually"
+    if normalized not in EVENT_RECURRENCE_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid recurrence type")
+    return normalized
+
+
+def _uses_monthly_anchor(recurrence_type: str | None) -> bool:
+    return recurrence_type in {"monthly", "quarterly", "semi_annually"}
 
 
 def _require_client_exists(client_id: str):
@@ -967,11 +991,15 @@ def _adjust_to_weekday(d):
     return d
 
 
+def _is_business_day(d: date) -> bool:
+    return d.weekday() < 5 and not kr_is_holiday(d.isoformat())
+
+
 def _expand_recurring(events_data, view_start: date, view_end: date):
     """Expand recurring events into individual date instances within the view range."""
     expanded = []
     for ev in events_data:
-        rtype = ev.get("recurrence_type")
+        rtype = _normalize_recurrence_type(ev.get("recurrence_type"))
         if not rtype:
             expanded.append(ev)
             continue
@@ -986,9 +1014,14 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
         skip_weekend = ev.get("skip_weekend", False)
         rec_day = ev.get("recurrence_day")
 
-        if rtype == "monthly" and rec_day:
+        if _uses_monthly_anchor(rtype) and rec_day:
             import calendar as cal_mod
             cur_year, cur_month = base.year, base.month
+            month_step = interval
+            if rtype == "quarterly":
+                month_step *= 3
+            elif rtype == "semi_annually":
+                month_step *= 6
             while True:
                 max_day = cal_mod.monthrange(cur_year, cur_month)[1]
                 day = min(rec_day, max_day)
@@ -1004,15 +1037,21 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
                         instance["is_done"] = display_date.isoformat() in completed
                         instance["_recurring"] = True
                         expanded.append(instance)
-                cur_month += interval
+                cur_month += month_step
                 if cur_month > 12:
                     cur_year += (cur_month - 1) // 12
                     cur_month = (cur_month - 1) % 12 + 1
         else:
             current = base
             while current <= r_end:
-                display_date = _adjust_to_weekday(current) if skip_weekend else current
-                if display_date >= view_start and display_date <= r_end:
+                if rtype == "daily":
+                    if _is_business_day(current):
+                        display_date = current
+                    else:
+                        display_date = None
+                else:
+                    display_date = _adjust_to_weekday(current) if skip_weekend else current
+                if display_date and display_date >= view_start and display_date <= r_end:
                     instance = dict(ev)
                     instance["start_date"] = display_date.isoformat()
                     instance["description"] = clean_desc
@@ -1026,7 +1065,11 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
                     current += timedelta(weeks=interval)
                 elif rtype == "monthly":
                     current += relativedelta(months=interval)
-                elif rtype == "yearly":
+                elif rtype == "quarterly":
+                    current += relativedelta(months=interval * 3)
+                elif rtype == "semi_annually":
+                    current += relativedelta(months=interval * 6)
+                elif rtype in {"annually", "yearly"}:
                     current += relativedelta(years=interval)
                 else:
                     break
@@ -1081,6 +1124,7 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
     if req.client_id:
         _require_client_exists(req.client_id)
     team_id = _get_request_user_team_id(user)
+    recurrence_type = _normalize_recurrence_type(req.recurrence_type)
     calendar_type = _normalize_event_calendar_type(
         req.calendar_type or ("work" if req.is_task else "personal")
     )
@@ -1097,12 +1141,12 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         "description": req.description,
         "color": req.color,
         "remind_minutes": req.remind_minutes,
-        "recurrence_type": req.recurrence_type,
-        "recurrence_end": req.recurrence_end,
-        "recurrence_interval": req.recurrence_interval,
-        "recurrence_day": req.recurrence_day,
+        "recurrence_type": recurrence_type,
+        "recurrence_end": req.recurrence_end if recurrence_type else None,
+        "recurrence_interval": req.recurrence_interval if recurrence_type else 1,
+        "recurrence_day": req.recurrence_day if _uses_monthly_anchor(recurrence_type) else None,
         "is_task": req.is_task,
-        "skip_weekend": req.skip_weekend,
+        "skip_weekend": bool(req.skip_weekend) if recurrence_type else False,
         "client_id": req.client_id,
     }
     result = db.table("events").insert(data).execute()
@@ -1136,6 +1180,24 @@ async def update_event(
         data["team_id"] = team_id
     elif (existing_row.get("calendar_type") or ("work" if existing_row.get("is_task") else "personal")) == "work":
         data["team_id"] = existing_row.get("team_id") or team_id
+
+    if "recurrence_type" in data:
+        recurrence_type = _normalize_recurrence_type(data.get("recurrence_type"))
+        data["recurrence_type"] = recurrence_type
+        if recurrence_type is None:
+            data["recurrence_end"] = None
+            data["recurrence_interval"] = 1
+            data["recurrence_day"] = None
+            data["skip_weekend"] = False
+        else:
+            if "recurrence_interval" in data:
+                data["recurrence_interval"] = data["recurrence_interval"] or 1
+            if not _uses_monthly_anchor(recurrence_type):
+                data["recurrence_day"] = None
+    elif "recurrence_day" in data:
+        current_recurrence = _normalize_recurrence_type(existing_row.get("recurrence_type"))
+        if not _uses_monthly_anchor(current_recurrence):
+            data["recurrence_day"] = None
 
     if "description" in data and (req.recurrence_type or data.get("recurrence_type")):
         existing = (
