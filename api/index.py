@@ -34,6 +34,7 @@ from lib.models import (
     CategoryUpdate,
     UserCreate,
     SettingsUpdate,
+    UserPreferencesUpdate,
     SetupRequest,
     PasswordChange,
     EventCreate,
@@ -99,6 +100,11 @@ async def get_admin_user(user=Depends(get_current_user)):
 
 
 CLIENT_STATUSES = {"active", "pending", "paused", "closed"}
+USER_PREFERENCES_DEFAULTS = {
+    "client_view_state": {},
+    "client_custom_view": None,
+    "url_notes": {},
+}
 
 
 def _explicit_model_data(model):
@@ -136,6 +142,71 @@ def _get_next_client_sort_order():
         return 0
     current = result.data[0].get("sort_order")
     return int(current or 0) + 1
+
+
+def _serialize_user_preferences(row=None):
+    source = row or {}
+    return {
+        "client_view_state": source.get("client_view_state")
+        if isinstance(source.get("client_view_state"), dict)
+        else {},
+        "client_custom_view": source.get("client_custom_view")
+        if isinstance(source.get("client_custom_view"), dict)
+        else None,
+        "url_notes": source.get("url_notes")
+        if isinstance(source.get("url_notes"), dict)
+        else {},
+    }
+
+
+def _get_user_preferences(user_id: str):
+    db = get_supabase()
+    result = (
+        db.table("user_preferences")
+        .select("client_view_state, client_custom_view, url_notes")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not result.data:
+        return _serialize_user_preferences(USER_PREFERENCES_DEFAULTS)
+    return _serialize_user_preferences(result.data[0])
+
+
+def _save_user_preferences(user_id: str, payload: dict):
+    db = get_supabase()
+    existing = (
+        db.table("user_preferences")
+        .select("user_id")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+
+    data = {
+        **payload,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    if existing.data:
+        result = (
+            db.table("user_preferences")
+            .update(data)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    else:
+        result = db.table("user_preferences").insert(
+            {
+                "user_id": user_id,
+                **USER_PREFERENCES_DEFAULTS,
+                **data,
+            }
+        ).execute()
+
+    if not result.data:
+        return _get_user_preferences(user_id)
+    return _serialize_user_preferences(result.data[0])
 
 
 def _timeline_timestamp(row, *fields):
@@ -645,6 +716,28 @@ async def update_settings(req: SettingsUpdate, user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="No fields to update")
     result = db.table("users").update(data).eq("id", user["sub"]).execute()
     return result.data[0]
+
+
+@app.get("/api/user/preferences")
+async def get_user_preferences(user=Depends(get_current_user)):
+    return _get_user_preferences(user["sub"])
+
+
+@app.put("/api/user/preferences")
+async def update_user_preferences(req: UserPreferencesUpdate, user=Depends(get_current_user)):
+    raw = _explicit_model_data(req)
+    if not raw:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    data = {}
+    if "client_view_state" in raw:
+        data["client_view_state"] = raw["client_view_state"] or {}
+    if "client_custom_view" in raw:
+        data["client_custom_view"] = raw["client_custom_view"]
+    if "url_notes" in raw:
+        data["url_notes"] = raw["url_notes"] or {}
+
+    return _save_user_preferences(user["sub"], data)
 
 
 @app.put("/api/user/password")

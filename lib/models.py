@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Dict, Optional
 
 
 class LoginRequest(BaseModel):
@@ -67,6 +67,12 @@ class SettingsUpdate(BaseModel):
     lock_enabled: Optional[bool] = None
     lock_timeout: Optional[int] = None
     display_name: Optional[str] = None
+
+
+class UserPreferencesUpdate(BaseModel):
+    client_view_state: Optional[Dict[str, Any]] = None
+    client_custom_view: Optional[Dict[str, Any]] = None
+    url_notes: Optional[Dict[str, str]] = None
 
 
 class SetupRequest(BaseModel):
