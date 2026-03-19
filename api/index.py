@@ -424,6 +424,20 @@ def _timeline_timestamp(row, *fields):
     return ""
 
 
+def _clean_event_timeline_description(text: str, owner_name: str | None = None) -> str:
+    lines = []
+    for raw_line in (text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("__AUTOIMPORT_STAFF_SCHEDULE__:"):
+            continue
+        if owner_name and line == f"담당자: {owner_name}":
+            continue
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def _is_disallowed_outbound_host(hostname: str) -> bool:
     if not hostname:
         return True
@@ -1687,8 +1701,8 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
 
     for event in event_rows:
         occurred_at = _timeline_timestamp(event, "updated_at", "created_at")
-        event_description = event.get("description") or ""
         owner_name = event.get("owner_display_name")
+        event_description = _clean_event_timeline_description(event.get("description") or "", owner_name)
         if owner_name and owner_name != current_user_name:
             event_description = f"담당자: {owner_name}" + (f"\n{event_description}" if event_description else "")
         items.append(
