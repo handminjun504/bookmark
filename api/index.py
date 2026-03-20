@@ -123,6 +123,9 @@ USER_PREFERENCES_DEFAULTS = {
     "url_notes": {},
 }
 
+WEEKDAY_KEYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+WEEKDAY_INDEX = {key: index for index, key in enumerate(WEEKDAY_KEYS)}
+
 
 def _explicit_model_data(model):
     return {field: getattr(model, field) for field in model.model_fields_set}
@@ -158,6 +161,33 @@ def _normalize_recurrence_type(value: str | None) -> str | None:
 
 def _uses_monthly_anchor(recurrence_type: str | None) -> bool:
     return recurrence_type in {"monthly", "quarterly", "semi_annually"}
+
+
+def _weekday_key_for_date(value: date) -> str:
+    return WEEKDAY_KEYS[value.weekday()]
+
+
+def _normalize_recurrence_weekdays(
+    values,
+    *,
+    fallback_date: date | None = None,
+) -> List[str]:
+    if values is None:
+        candidates: List[str] = []
+    elif isinstance(values, str):
+        candidates = [item.strip().lower() for item in values.split(",")]
+    else:
+        candidates = [str(item or "").strip().lower() for item in values]
+
+    valid = set()
+    for value in candidates:
+        if value in WEEKDAY_INDEX:
+            valid.add(value)
+
+    ordered = [key for key in WEEKDAY_KEYS if key in valid]
+    if not ordered and fallback_date is not None:
+        return [_weekday_key_for_date(fallback_date)]
+    return ordered
 
 
 def _require_client_exists(client_id: str):
@@ -1094,6 +1124,10 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
         interval = ev.get("recurrence_interval") or 1
         skip_weekend = ev.get("skip_weekend", False)
         rec_day = ev.get("recurrence_day")
+        recurrence_weekdays = _normalize_recurrence_weekdays(
+            ev.get("recurrence_weekdays"),
+            fallback_date=base if rtype == "weekly" else None,
+        )
 
         if _uses_monthly_anchor(rtype) and rec_day:
             import calendar as cal_mod
@@ -1122,6 +1156,24 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
                 if cur_month > 12:
                     cur_year += (cur_month - 1) // 12
                     cur_month = (cur_month - 1) % 12 + 1
+        elif rtype == "weekly":
+            week_start = base - timedelta(days=base.weekday())
+            weekday_offsets = [WEEKDAY_INDEX[key] for key in recurrence_weekdays]
+            current_week_start = week_start
+            while current_week_start <= r_end:
+                for offset in weekday_offsets:
+                    current = current_week_start + timedelta(days=offset)
+                    if current < base or current > r_end:
+                        continue
+                    display_date = _adjust_to_weekday(current) if skip_weekend else current
+                    if display_date >= view_start and display_date <= r_end:
+                        instance = dict(ev)
+                        instance["start_date"] = display_date.isoformat()
+                        instance["description"] = clean_desc
+                        instance["is_done"] = display_date.isoformat() in completed
+                        instance["_recurring"] = True
+                        expanded.append(instance)
+                current_week_start += timedelta(weeks=interval)
         else:
             current = base
             while current <= r_end:
@@ -1142,8 +1194,6 @@ def _expand_recurring(events_data, view_start: date, view_end: date):
 
                 if rtype == "daily":
                     current += timedelta(days=interval)
-                elif rtype == "weekly":
-                    current += timedelta(weeks=interval)
                 elif rtype == "monthly":
                     current += relativedelta(months=interval)
                 elif rtype == "quarterly":
@@ -1206,6 +1256,12 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         _require_client_exists(req.client_id)
     team_id = _get_request_user_team_id(user)
     recurrence_type = _normalize_recurrence_type(req.recurrence_type)
+    base_start_date = date.fromisoformat(req.start_date)
+    recurrence_weekdays = (
+        _normalize_recurrence_weekdays(req.recurrence_weekdays, fallback_date=base_start_date)
+        if recurrence_type == "weekly"
+        else []
+    )
     calendar_type = _normalize_event_calendar_type(
         req.calendar_type or ("work" if req.is_task else "personal")
     )
@@ -1227,6 +1283,7 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
         "recurrence_end": req.recurrence_end if recurrence_type else None,
         "recurrence_interval": req.recurrence_interval if recurrence_type else 1,
         "recurrence_day": req.recurrence_day if _uses_monthly_anchor(recurrence_type) else None,
+        "recurrence_weekdays": recurrence_weekdays,
         "is_task": req.is_task,
         "skip_weekend": bool(req.skip_weekend) if recurrence_type else False,
         "client_id": req.client_id,
@@ -1275,6 +1332,7 @@ async def update_event(
             data["recurrence_end"] = None
             data["recurrence_interval"] = 1
             data["recurrence_day"] = None
+            data["recurrence_weekdays"] = []
             data["skip_weekend"] = False
         else:
             if "recurrence_interval" in data:
@@ -1285,6 +1343,26 @@ async def update_event(
         current_recurrence = _normalize_recurrence_type(existing_row.get("recurrence_type"))
         if not _uses_monthly_anchor(current_recurrence):
             data["recurrence_day"] = None
+
+    effective_recurrence_type = data.get("recurrence_type")
+    if "recurrence_type" not in data:
+        effective_recurrence_type = _normalize_recurrence_type(existing_row.get("recurrence_type"))
+    effective_start_date = date.fromisoformat(data.get("start_date") or existing_row.get("start_date"))
+    if effective_recurrence_type == "weekly":
+        if (
+            "recurrence_weekdays" in data
+            or "recurrence_type" in data
+            or "start_date" in data
+        ):
+            source_weekdays = data.get("recurrence_weekdays")
+            if "recurrence_weekdays" not in data:
+                source_weekdays = existing_row.get("recurrence_weekdays")
+            data["recurrence_weekdays"] = _normalize_recurrence_weekdays(
+                source_weekdays,
+                fallback_date=effective_start_date,
+            )
+    elif "recurrence_weekdays" in data or "recurrence_type" in data:
+        data["recurrence_weekdays"] = []
 
     if "description" in data and (req.recurrence_type or data.get("recurrence_type")):
         existing = (
@@ -1369,6 +1447,7 @@ async def toggle_event_done(
 async def get_week_tasks(
     date_str: str = None,
     calendar_type: str = "all",
+    tasks_only: bool = True,
     user=Depends(get_current_user),
 ):
     if date_str:
@@ -1384,7 +1463,7 @@ async def get_week_tasks(
             user,
             start_str=monday.isoformat(),
             end_str=(sunday + timedelta(days=1)).isoformat(),
-            tasks_only=True,
+            tasks_only=tasks_only,
         ),
         calendar_type,
     )

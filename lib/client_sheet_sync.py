@@ -18,6 +18,7 @@ GOOGLE_SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets"
 DEFAULT_SHEET_ID = "14cZE3ycFtqUOhLRXipmtWkIeF5KeSsmcC2Huyikcbso"
 DEFAULT_SHEET_GID = "0"
 DEFAULT_SHEET_RANGE = "B:Y"
+DEFAULT_SERVICE_ACCOUNT_FILE = "/Users/sonminjun/Downloads/linkflow-490708-bae80089e93e.json"
 
 CLIENT_FIXED_FIELDS = [
     {"key": "name", "label": "거래처명"},
@@ -335,33 +336,71 @@ def _get_google_access_token() -> str:
 
 
 def _load_google_service_account() -> Dict[str, Any]:
-    raw = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
-    if not raw:
-        raise HTTPException(status_code=503, detail="GOOGLE_SERVICE_ACCOUNT_JSON 이 설정되지 않았습니다")
+    file_env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_FILE", "").strip()
+    inline_env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
 
-    candidates = [raw]
-    if "\\n" in raw:
-        candidates.append(raw.replace("\\n", "\n"))
-    if not raw.startswith("{"):
-        for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+    candidates: List[str] = []
+    if file_env:
+        candidates.append(_read_service_account_file(file_env, env_name="GOOGLE_SERVICE_ACCOUNT_JSON_FILE"))
+    elif os.path.isfile(DEFAULT_SERVICE_ACCOUNT_FILE):
+        candidates.append(_read_service_account_file(DEFAULT_SERVICE_ACCOUNT_FILE, env_name=None))
+
+    if inline_env:
+        candidates.append(inline_env)
+
+    if not candidates:
+        raise HTTPException(
+            status_code=503,
+            detail="GOOGLE_SERVICE_ACCOUNT_JSON_FILE 또는 GOOGLE_SERVICE_ACCOUNT_JSON 이 설정되지 않았습니다",
+        )
+
+    for raw in candidates:
+        raw_candidates = [raw]
+        if "\\n" in raw:
+            raw_candidates.append(raw.replace("\\n", "\n"))
+        if not raw.startswith("{"):
+            for decoder in (base64.b64decode, base64.urlsafe_b64decode):
+                try:
+                    decoded = decoder(raw.encode("utf-8")).decode("utf-8")
+                    raw_candidates.extend([decoded, decoded.replace("\\n", "\n")])
+                except Exception:
+                    continue
+
+        for candidate in raw_candidates:
             try:
-                decoded = decoder(raw.encode("utf-8")).decode("utf-8")
-                candidates.extend([decoded, decoded.replace("\\n", "\n")])
+                account = json.loads(candidate)
             except Exception:
                 continue
+            private_key = str(account.get("private_key") or "").replace("\\n", "\n")
+            client_email = str(account.get("client_email") or "").strip()
+            if private_key and client_email:
+                account["private_key"] = private_key
+                return account
 
-    for candidate in candidates:
-        try:
-            account = json.loads(candidate)
-        except Exception:
-            continue
-        private_key = str(account.get("private_key") or "").replace("\\n", "\n")
-        client_email = str(account.get("client_email") or "").strip()
-        if private_key and client_email:
-            account["private_key"] = private_key
-            return account
+    raise HTTPException(
+        status_code=503,
+        detail="GOOGLE_SERVICE_ACCOUNT_JSON_FILE 또는 GOOGLE_SERVICE_ACCOUNT_JSON 형식을 해석하지 못했습니다",
+    )
 
-    raise HTTPException(status_code=503, detail="GOOGLE_SERVICE_ACCOUNT_JSON 형식을 해석하지 못했습니다")
+
+def _read_service_account_file(path: str, env_name: Optional[str]) -> str:
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return handle.read().strip()
+    except FileNotFoundError as exc:
+        if env_name:
+            raise HTTPException(
+                status_code=503,
+                detail=f"{env_name} 경로의 서비스 계정 파일을 찾지 못했습니다: {path}",
+            ) from exc
+        raise
+    except OSError as exc:
+        if env_name:
+            raise HTTPException(
+                status_code=503,
+                detail=f"{env_name} 경로의 서비스 계정 파일을 읽지 못했습니다: {path}",
+            ) from exc
+        raise
 
 
 def _parse_sheet_row(headers: List[str], values: List[Any], row_number: int) -> Dict[str, Any]:
