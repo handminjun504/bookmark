@@ -119,7 +119,9 @@ EVENT_RECURRENCE_TYPES = {
     "annually",
     "yearly",
 }
+TEAM_USER_SCOPE_TTL_SECONDS = 60
 EVENT_OWNER_CACHE_TTL_SECONDS = 300
+TEAM_USER_SCOPE_CACHE: Dict[str, Dict[str, Any]] = {}
 EVENT_OWNER_NAME_CACHE: Dict[str, Dict[str, Any]] = {}
 USER_PREFERENCES_DEFAULTS = {
     "client_view_state": {},
@@ -229,18 +231,58 @@ def _require_client_team_access(user) -> str:
     return team_id
 
 
-def _event_belongs_to_team_scope(row: Dict[str, Any], team_id: str | None) -> bool:
-    return bool(
-        team_id
-        and (row.get("calendar_type") or "personal") == "work"
-        and row.get("team_id") == team_id
+def _get_team_user_ids(team_id: str | None) -> set[str]:
+    if not team_id:
+        return set()
+    now_ts = datetime.now(timezone.utc).timestamp()
+    cached = TEAM_USER_SCOPE_CACHE.get(team_id)
+    if cached and cached.get("expires_at", 0) > now_ts:
+        return set(cached.get("user_ids") or [])
+
+    db = get_supabase()
+    rows = (
+        db.table("users")
+        .select("id")
+        .eq("team_id", team_id)
+        .execute()
+        .data
+        or []
     )
+    user_ids = {row["id"] for row in rows if row.get("id")}
+    TEAM_USER_SCOPE_CACHE[team_id] = {
+        "user_ids": sorted(user_ids),
+        "expires_at": now_ts + TEAM_USER_SCOPE_TTL_SECONDS,
+    }
+    return user_ids
 
 
-def _can_access_event(row: Dict[str, Any], user, team_id: str | None = None) -> bool:
+def _event_belongs_to_team_scope(
+    row: Dict[str, Any],
+    team_id: str | None,
+    team_user_ids: set[str] | None = None,
+) -> bool:
+    if not team_id:
+        return False
+    if (row.get("calendar_type") or "personal") != "work":
+        return False
+    if row.get("team_id") == team_id:
+        return True
+    if team_user_ids and row.get("user_id") in team_user_ids:
+        return True
+    return False
+
+
+def _can_access_event(
+    row: Dict[str, Any],
+    user,
+    team_id: str | None = None,
+    team_user_ids: set[str] | None = None,
+) -> bool:
     if row.get("user_id") == user["sub"]:
         return True
-    return _event_belongs_to_team_scope(row, team_id or _get_request_user_team_id(user))
+    resolved_team_id = team_id or _get_request_user_team_id(user)
+    resolved_team_user_ids = team_user_ids if team_user_ids is not None else _get_team_user_ids(resolved_team_id)
+    return _event_belongs_to_team_scope(row, resolved_team_id, resolved_team_user_ids)
 
 
 def _get_accessible_event_or_404(event_id: str, user) -> Dict[str, Any]:
@@ -249,7 +291,9 @@ def _get_accessible_event_or_404(event_id: str, user) -> Dict[str, Any]:
     if not result.data:
         raise HTTPException(status_code=404, detail="Event not found")
     row = result.data[0]
-    if not _can_access_event(row, user):
+    team_id = _get_request_user_team_id(user)
+    team_user_ids = _get_team_user_ids(team_id)
+    if not _can_access_event(row, user, team_id, team_user_ids):
         raise HTTPException(status_code=404, detail="Event not found")
     return row
 
@@ -268,6 +312,7 @@ def _fetch_event_candidates(
     db = get_supabase()
     uid = user["sub"]
     team_id = _get_request_user_team_id(user)
+    team_user_ids = _get_team_user_ids(team_id)
 
     own_query = (
         db.table("events")
@@ -280,13 +325,13 @@ def _fetch_event_candidates(
     own_rows = own_query.or_(f"start_date.gte.{start_str},recurrence_type.neq.null").order("start_date").order("start_time").execute().data or []
 
     team_rows: List[Dict[str, Any]] = []
-    if team_id:
+    visible_team_user_ids = sorted(team_user_ids - {uid})
+    if visible_team_user_ids:
         team_query = (
             db.table("events")
             .select("*")
             .eq("calendar_type", "work")
-            .eq("team_id", team_id)
-            .neq("user_id", uid)
+            .in_("user_id", visible_team_user_ids)
             .lt("start_date", end_str)
         )
         if tasks_only:
@@ -303,6 +348,7 @@ def _fetch_client_accessible_events(client_id: str, user) -> List[Dict[str, Any]
     db = get_supabase()
     uid = user["sub"]
     team_id = _get_request_user_team_id(user)
+    team_user_ids = _get_team_user_ids(team_id)
 
     own_rows = (
         db.table("events")
@@ -317,14 +363,14 @@ def _fetch_client_accessible_events(client_id: str, user) -> List[Dict[str, Any]
     )
 
     team_rows: List[Dict[str, Any]] = []
-    if team_id:
+    visible_team_user_ids = sorted(team_user_ids - {uid})
+    if visible_team_user_ids:
         team_rows = (
             db.table("events")
             .select("*")
             .eq("client_id", client_id)
             .eq("calendar_type", "work")
-            .eq("team_id", team_id)
-            .neq("user_id", uid)
+            .in_("user_id", visible_team_user_ids)
             .order("start_date", desc=True)
             .order("start_time", desc=True)
             .execute()
