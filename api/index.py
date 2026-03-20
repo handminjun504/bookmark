@@ -208,7 +208,7 @@ def _require_client_exists(client_id: str):
 
 
 def _get_request_user_team_id(user) -> str | None:
-    if user.get("team_id"):
+    if "team_id" in user:
         return user.get("team_id")
     db = get_supabase()
     result = db.table("users").select("team_id").eq("id", user["sub"]).limit(1).execute()
@@ -352,11 +352,16 @@ def _attach_event_owner_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
         or []
     )
     names = {
-        row["id"]: row.get("display_name") or row.get("username") or "사용자"
+        row["id"]: {
+            "display_name": row.get("display_name") or row.get("username") or "사용자",
+            "username": row.get("username") or "",
+        }
         for row in users
     }
     for row in rows:
-        row["owner_display_name"] = names.get(row.get("user_id"), "사용자")
+        owner = names.get(row.get("user_id"), {"display_name": "사용자", "username": ""})
+        row["owner_display_name"] = owner["display_name"]
+        row["owner_username"] = owner["username"]
     return rows
 
 
@@ -688,7 +693,7 @@ async def login(req: LoginRequest):
     if not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_token(user["id"], user["username"], user["is_admin"])
+    token = create_token(user["id"], user["username"], user["is_admin"], user.get("team_id"))
 
     response = {
         "token": token,
@@ -739,7 +744,7 @@ async def auto_login(req: AutoLoginRequest):
         {"last_used": datetime.now(timezone.utc).isoformat()}
     ).eq("id", device["id"]).execute()
 
-    token = create_token(user["id"], user["username"], user["is_admin"])
+    token = create_token(user["id"], user["username"], user["is_admin"], user.get("team_id"))
 
     return {
         "token": token,
@@ -1130,6 +1135,47 @@ async def change_password(req: PasswordChange, user=Depends(get_current_user)):
     return {"message": "Password changed"}
 
 
+@app.get("/api/team/members")
+async def get_team_members(user=Depends(get_current_user)):
+    team_id = _get_request_user_team_id(user)
+    if not team_id:
+        return []
+
+    db = get_supabase()
+    rows = (
+        db.table("users")
+        .select("id, username, display_name, subteam_name, team_id")
+        .eq("team_id", team_id)
+        .order("display_name")
+        .execute()
+        .data
+        or []
+    )
+
+    current_user_id = user["sub"]
+    members = []
+    for row in rows:
+        members.append(
+            {
+                "id": row["id"],
+                "username": row.get("username"),
+                "display_name": row.get("display_name") or row.get("username") or "사용자",
+                "subteam_name": row.get("subteam_name"),
+                "team_id": row.get("team_id"),
+                "is_current_user": row["id"] == current_user_id,
+            }
+        )
+
+    members.sort(
+        key=lambda item: (
+            0 if item["is_current_user"] else 1,
+            item["display_name"],
+            item.get("username") or "",
+        )
+    )
+    return members
+
+
 # ?? Admin ??
 
 
@@ -1374,7 +1420,7 @@ async def get_events(
             all_events.append(ev)
 
     all_events.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
-    return all_events
+    return _attach_event_owner_names(all_events)
 
 
 @app.post("/api/events")
@@ -1615,7 +1661,7 @@ async def get_week_tasks(
             week_tasks.append(ev)
 
     week_tasks.sort(key=lambda e: (e["start_date"], e.get("start_time") or ""))
-    return week_tasks
+    return _attach_event_owner_names(week_tasks)
 
 
 # ?? Teams (Admin) ??

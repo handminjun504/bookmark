@@ -18,12 +18,13 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_token(user_id: str, username: str, is_admin: bool) -> str:
+def create_token(user_id: str, username: str, is_admin: bool, team_id: str | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
     payload = {
         "sub": user_id,
         "username": username,
         "is_admin": is_admin,
+        "team_id": team_id,
         "exp": expire,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
