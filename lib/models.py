@@ -214,6 +214,10 @@ class ClientUpdate(BaseModel):
     last_synced_at: Optional[str] = None
 
 
+class ClientSyncRequest(BaseModel):
+    service_account_json: Optional[str] = None
+
+
 class ClientReorderRequest(BaseModel):
     items: list
 

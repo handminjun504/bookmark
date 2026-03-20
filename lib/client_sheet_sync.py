@@ -106,9 +106,13 @@ def get_client_schema_snapshot(rows: Optional[List[Dict[str, Any]]] = None) -> D
     }
 
 
-def sync_clients_from_sheet(db, encrypt_password=None) -> Dict[str, Any]:
+def sync_clients_from_sheet(
+    db,
+    encrypt_password=None,
+    service_account_json: Optional[str] = None,
+) -> Dict[str, Any]:
     CLIENT_SYNC_STATE["last_attempt_at"] = datetime.now(timezone.utc).isoformat()
-    sheet = _fetch_sheet_rows()
+    sheet = _fetch_sheet_rows(service_account_json=service_account_json)
     headers = sheet["headers"]
     rows = sheet["rows"]
 
@@ -217,8 +221,8 @@ def sync_clients_from_sheet(db, encrypt_password=None) -> Dict[str, Any]:
     }
 
 
-def _fetch_sheet_rows() -> Dict[str, Any]:
-    access_token = _get_google_access_token()
+def _fetch_sheet_rows(service_account_json: Optional[str] = None) -> Dict[str, Any]:
+    access_token = _get_google_access_token(service_account_json=service_account_json)
     sheet_id = os.getenv("GOOGLE_SHEET_ID", DEFAULT_SHEET_ID).strip() or DEFAULT_SHEET_ID
     gid = int((os.getenv("GOOGLE_SHEET_GID", DEFAULT_SHEET_GID) or DEFAULT_SHEET_GID).strip())
     cell_range = (os.getenv("GOOGLE_SHEET_RANGE", DEFAULT_SHEET_RANGE) or DEFAULT_SHEET_RANGE).strip()
@@ -295,8 +299,8 @@ def _fetch_sheet_rows() -> Dict[str, Any]:
     }
 
 
-def _get_google_access_token() -> str:
-    account = _load_google_service_account()
+def _get_google_access_token(service_account_json: Optional[str] = None) -> str:
+    account = _load_google_service_account(service_account_json=service_account_json)
     now = datetime.now(timezone.utc)
     payload = {
         "iss": account["client_email"],
@@ -335,11 +339,13 @@ def _get_google_access_token() -> str:
     return token
 
 
-def _load_google_service_account() -> Dict[str, Any]:
+def _load_google_service_account(service_account_json: Optional[str] = None) -> Dict[str, Any]:
     file_env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_FILE", "").strip()
     inline_env = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
 
     candidates: List[str] = []
+    if service_account_json:
+        candidates.append(service_account_json.strip())
     if file_env:
         candidates.append(_read_service_account_file(file_env, env_name="GOOGLE_SERVICE_ACCOUNT_JSON_FILE"))
     elif os.path.isfile(DEFAULT_SERVICE_ACCOUNT_FILE):

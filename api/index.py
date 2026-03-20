@@ -51,6 +51,7 @@ from lib.models import (
     TeamCreate,
     TeamUpdate,
     ClientCreate,
+    ClientSyncRequest,
     ClientUpdate,
     ClientReorderRequest,
     ShortcutCreate,
@@ -214,6 +215,16 @@ def _get_request_user_team_id(user) -> str | None:
     if not result.data:
         return None
     return result.data[0].get("team_id")
+
+
+def _require_client_team_access(user) -> str:
+    team_id = _get_request_user_team_id(user)
+    if not team_id:
+        raise HTTPException(
+            status_code=403,
+            detail="거래처 탭은 팀 설정이 완료된 계정만 사용할 수 있습니다",
+        )
+    return team_id
 
 
 def _event_belongs_to_team_scope(row: Dict[str, Any], team_id: str | None) -> bool:
@@ -1747,19 +1758,26 @@ async def list_clients(
     include_inactive: bool = False,
     user=Depends(get_current_user),
 ):
+    _require_client_team_access(user)
     rows = _get_all_client_rows()
     return _filter_visible_clients(rows, include_hidden=include_hidden, include_inactive=include_inactive)
 
 
 @app.get("/api/clients/schema")
 async def get_client_schema(user=Depends(get_current_user)):
+    _require_client_team_access(user)
     return get_client_schema_snapshot(_get_all_client_rows())
 
 
 @app.post("/api/clients/sync")
-async def sync_clients(user=Depends(get_current_user)):
+async def sync_clients(payload: ClientSyncRequest | None = None, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     try:
-        return sync_clients_from_sheet(get_supabase(), encrypt_password=_encrypt)
+        return sync_clients_from_sheet(
+            get_supabase(),
+            encrypt_password=_encrypt,
+            service_account_json=(payload.service_account_json if payload else None),
+        )
     except HTTPException as exc:
         CLIENT_SYNC_STATE["last_error"] = str(exc.detail)
         raise
@@ -1770,11 +1788,13 @@ async def sync_clients(user=Depends(get_current_user)):
 
 @app.get("/api/clients/{client_id}")
 async def get_client(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     return _get_client_row_or_404(client_id)
 
 
 @app.post("/api/clients/{client_id}/hide")
 async def hide_client(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     result = (
@@ -1795,6 +1815,7 @@ async def hide_client(client_id: str, user=Depends(get_current_user)):
 
 @app.post("/api/clients/{client_id}/unhide")
 async def unhide_client(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     result = (
@@ -1810,6 +1831,7 @@ async def unhide_client(client_id: str, user=Depends(get_current_user)):
 
 @app.post("/api/clients")
 async def create_client(req: ClientCreate, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     db = get_supabase()
     payload = _build_client_write_payload(req.model_dump())
     payload["sheet_row_number"] = None
@@ -1822,6 +1844,7 @@ async def create_client(req: ClientCreate, user=Depends(get_current_user)):
 
 @app.put("/api/clients/{client_id}")
 async def update_client(client_id: str, req: ClientUpdate, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     db = get_supabase()
     existing_row = _get_client_row_or_404(client_id)
     data = _explicit_model_data(req)
@@ -1836,16 +1859,19 @@ async def update_client(client_id: str, req: ClientUpdate, user=Depends(get_curr
 
 @app.patch("/api/clients/reorder")
 async def reorder_clients(req: ClientReorderRequest, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     raise HTTPException(status_code=405, detail="거래처 순서는 Google Sheet 기준으로 동기화됩니다")
 
 
 @app.delete("/api/clients/{client_id}")
 async def delete_client(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     return await hide_client(client_id, user=user)
 
 
 @app.get("/api/clients/{client_id}/timeline")
 async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     uid = user["sub"]
@@ -1945,6 +1971,7 @@ async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
 
 @app.get("/api/clients/{client_id}/events")
 async def get_client_events(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     rows = _attach_event_owner_names(_fetch_client_accessible_events(client_id, user))
     rows.sort(key=lambda row: (row.get("start_date") or "", row.get("start_time") or ""), reverse=True)
@@ -1956,6 +1983,7 @@ async def get_client_events(client_id: str, user=Depends(get_current_user)):
 
 @app.get("/api/clients/{client_id}/shortcuts")
 async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     result = (
@@ -1972,6 +2000,7 @@ async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
 async def create_shortcut(
     client_id: str, req: ShortcutCreate, user=Depends(get_current_user)
 ):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     data = {
@@ -1992,6 +2021,7 @@ async def update_shortcut(
     req: ShortcutUpdate,
     user=Depends(get_current_user),
 ):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
@@ -2013,6 +2043,7 @@ async def update_shortcut(
 async def delete_shortcut(
     client_id: str, shortcut_id: str, user=Depends(get_current_user)
 ):
+    _require_client_team_access(user)
     _require_client_exists(client_id)
     db = get_supabase()
     result = (
