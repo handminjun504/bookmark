@@ -119,6 +119,8 @@ EVENT_RECURRENCE_TYPES = {
     "annually",
     "yearly",
 }
+EVENT_OWNER_CACHE_TTL_SECONDS = 300
+EVENT_OWNER_NAME_CACHE: Dict[str, Dict[str, Any]] = {}
 USER_PREFERENCES_DEFAULTS = {
     "client_view_state": {},
     "client_custom_view": None,
@@ -342,22 +344,42 @@ def _attach_event_owner_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
     user_ids = sorted({row.get("user_id") for row in rows if row.get("user_id")})
     if not user_ids:
         return rows
-    db = get_supabase()
-    users = (
-        db.table("users")
-        .select("id,display_name,username")
-        .in_("id", user_ids)
-        .execute()
-        .data
-        or []
-    )
-    names = {
-        row["id"]: {
-            "display_name": row.get("display_name") or row.get("username") or "사용자",
-            "username": row.get("username") or "",
+    now_ts = datetime.now(timezone.utc).timestamp()
+    stale_ids = []
+    names = {}
+    for user_id in user_ids:
+        cached = EVENT_OWNER_NAME_CACHE.get(user_id)
+        if cached and cached.get("expires_at", 0) > now_ts:
+            names[user_id] = cached["value"]
+        else:
+            stale_ids.append(user_id)
+
+    if stale_ids:
+        db = get_supabase()
+        users = (
+            db.table("users")
+            .select("id,display_name,username")
+            .in_("id", stale_ids)
+            .execute()
+            .data
+            or []
+        )
+        fetched_names = {
+            row["id"]: {
+                "display_name": row.get("display_name") or row.get("username") or "사용자",
+                "username": row.get("username") or "",
+            }
+            for row in users
         }
-        for row in users
-    }
+        fallback = {"display_name": "사용자", "username": ""}
+        for user_id in stale_ids:
+            owner = fetched_names.get(user_id, fallback)
+            names[user_id] = owner
+            EVENT_OWNER_NAME_CACHE[user_id] = {
+                "value": owner,
+                "expires_at": now_ts + EVENT_OWNER_CACHE_TTL_SECONDS,
+            }
+
     for row in rows:
         owner = names.get(row.get("user_id"), {"display_name": "사용자", "username": ""})
         row["owner_display_name"] = owner["display_name"]
