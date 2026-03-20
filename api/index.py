@@ -107,6 +107,7 @@ async def get_admin_user(user=Depends(get_current_user)):
 
 
 CLIENT_STATUSES = {"active", "pending", "paused", "closed"}
+CLIENT_CATEGORIES = {"general", "welfare_fund", "loan"}
 EVENT_CALENDAR_TYPES = {"all", "personal", "work"}
 EVENT_RECURRENCE_TYPES = {
     "daily",
@@ -135,6 +136,13 @@ def _normalize_client_status(status: str) -> str:
     normalized = (status or "active").strip().lower()
     if normalized not in CLIENT_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid client status")
+    return normalized
+
+
+def _normalize_client_category(value: str | None) -> str:
+    normalized = (value or "general").strip().lower()
+    if normalized not in CLIENT_CATEGORIES:
+        raise HTTPException(status_code=400, detail="Invalid client category")
     return normalized
 
 
@@ -364,6 +372,115 @@ def _serialize_client_row(row, include_password: bool = False):
         data["gyeongli_password"] = ""
     data.pop("gyeongli_pw_encrypted", None)
     return data
+
+
+def _normalize_optional_date_string(value: Any, field_label: str) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw).isoformat()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"{field_label} 날짜 형식이 올바르지 않습니다") from exc
+
+
+def _normalize_client_text(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
+
+
+def _build_client_write_payload(
+    source: Dict[str, Any],
+    *,
+    existing_row: Dict[str, Any] | None = None,
+    partial: bool = False,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+
+    if not partial or "name" in source:
+        name = _normalize_client_text(source.get("name"))
+        if not name:
+            raise HTTPException(status_code=400, detail="거래처명은 필수입니다")
+        payload["name"] = name
+
+    if not partial or "status" in source:
+        payload["status"] = _normalize_client_status(source.get("status") or "active")
+
+    if not partial or "client_category" in source:
+        payload["client_category"] = _normalize_client_category(source.get("client_category"))
+
+    effective_category = payload.get("client_category")
+    if effective_category is None:
+        effective_category = _normalize_client_category((existing_row or {}).get("client_category"))
+
+    text_fields = (
+        "owner_name",
+        "company_contact_name",
+        "phone",
+        "email",
+        "memo",
+        "next_action_title",
+        "client_code",
+        "business_number",
+        "ceo_name",
+        "gyeongli_id",
+        "fund_corporate_name",
+        "parent_company_name",
+        "approval_number",
+    )
+    for field in text_fields:
+        if not partial or field in source:
+            payload[field] = _normalize_client_text(source.get(field))
+
+    if not partial or "last_contact_at" in source:
+        payload["last_contact_at"] = _normalize_optional_date_string(source.get("last_contact_at"), "최근 접촉일")
+    if not partial or "next_action_at" in source:
+        payload["next_action_at"] = _normalize_optional_date_string(source.get("next_action_at"), "다음 액션 예정일")
+    if not partial or "incorporation_registry_date" in source:
+        payload["incorporation_registry_date"] = _normalize_optional_date_string(
+            source.get("incorporation_registry_date"),
+            "설립등기일",
+        )
+
+    fund_fields = (
+        "approval_number",
+        "incorporation_registry_date",
+        "fund_corporate_name",
+        "parent_company_name",
+    )
+    if effective_category != "welfare_fund" and (
+        not partial
+        or "client_category" in source
+        or any(field in source for field in fund_fields)
+    ):
+        payload["approval_number"] = None
+        payload["incorporation_registry_date"] = None
+        payload["fund_corporate_name"] = None
+        payload["parent_company_name"] = None
+
+    password_source = None
+    if "gyeongli_password" in source:
+        password_source = source.get("gyeongli_password")
+    elif "gyeongli_pw" in source:
+        password_source = source.get("gyeongli_pw")
+    elif not partial:
+        password_source = None
+
+    if password_source is not None:
+        payload["gyeongli_pw_encrypted"] = _encrypt(str(password_source or "").strip())
+
+    if not partial:
+        payload.setdefault("status", "active")
+        payload.setdefault("client_category", "general")
+        payload.setdefault("source_active", True)
+        payload.setdefault("hidden_local", False)
+        payload.setdefault("sheet_extra_fields", {})
+        if not source.get("sort_order"):
+            payload["sort_order"] = _get_next_client_sort_order()
+        else:
+            payload["sort_order"] = int(source.get("sort_order") or 0)
+
+    return payload
 
 
 def _get_next_client_sort_order():
@@ -1613,7 +1730,8 @@ def _filter_visible_clients(
 ) -> List[Dict[str, Any]]:
     visible = []
     for row in rows:
-        if not str(row.get("client_code") or "").strip():
+        is_sheet_client = row.get("sheet_row_number") is not None
+        if is_sheet_client and not str(row.get("client_code") or "").strip():
             continue
         if not include_inactive and not row.get("source_active", True):
             continue
@@ -1692,12 +1810,28 @@ async def unhide_client(client_id: str, user=Depends(get_current_user)):
 
 @app.post("/api/clients")
 async def create_client(req: ClientCreate, user=Depends(get_current_user)):
-    raise HTTPException(status_code=405, detail="거래처 마스터는 Google Sheet 읽기 전용입니다")
+    db = get_supabase()
+    payload = _build_client_write_payload(req.model_dump())
+    payload["sheet_row_number"] = None
+    payload["last_synced_at"] = None
+    result = db.table("clients").insert(payload).execute()
+    if not result.data:
+        raise HTTPException(status_code=500, detail="Client creation failed")
+    return _serialize_client_row(result.data[0], include_password=True)
 
 
 @app.put("/api/clients/{client_id}")
 async def update_client(client_id: str, req: ClientUpdate, user=Depends(get_current_user)):
-    raise HTTPException(status_code=405, detail="거래처 마스터는 Google Sheet 읽기 전용입니다")
+    db = get_supabase()
+    existing_row = _get_client_row_or_404(client_id)
+    data = _explicit_model_data(req)
+    if not data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    payload = _build_client_write_payload(data, existing_row=existing_row, partial=True)
+    result = db.table("clients").update(payload).eq("id", client_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return _serialize_client_row(result.data[0], include_password=True)
 
 
 @app.patch("/api/clients/reorder")

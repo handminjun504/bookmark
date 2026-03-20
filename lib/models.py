@@ -155,6 +155,7 @@ class TeamUpdate(BaseModel):
 class ClientCreate(BaseModel):
     name: str
     status: str = "active"
+    client_category: Optional[str] = None
     owner_name: Optional[str] = None
     company_contact_name: Optional[str] = None
     phone: Optional[str] = None
@@ -167,6 +168,10 @@ class ClientCreate(BaseModel):
     client_code: Optional[str] = None
     business_number: Optional[str] = None
     ceo_name: Optional[str] = None
+    approval_number: Optional[str] = None
+    incorporation_registry_date: Optional[str] = None
+    fund_corporate_name: Optional[str] = None
+    parent_company_name: Optional[str] = None
     gyeongli_id: Optional[str] = None
     gyeongli_pw: Optional[str] = None
     gyeongli_password: Optional[str] = None
@@ -181,6 +186,7 @@ class ClientCreate(BaseModel):
 class ClientUpdate(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
+    client_category: Optional[str] = None
     owner_name: Optional[str] = None
     company_contact_name: Optional[str] = None
     phone: Optional[str] = None
@@ -193,6 +199,10 @@ class ClientUpdate(BaseModel):
     client_code: Optional[str] = None
     business_number: Optional[str] = None
     ceo_name: Optional[str] = None
+    approval_number: Optional[str] = None
+    incorporation_registry_date: Optional[str] = None
+    fund_corporate_name: Optional[str] = None
+    parent_company_name: Optional[str] = None
     gyeongli_id: Optional[str] = None
     gyeongli_pw: Optional[str] = None
     gyeongli_password: Optional[str] = None
