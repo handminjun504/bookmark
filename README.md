@@ -16,7 +16,7 @@
 
 - **Backend**: Python FastAPI (Vercel Serverless)
 - **Frontend**: HTML + CSS + Vanilla JS
-- **Database**: Supabase (PostgreSQL)
+- **Database**: gl-database MCP backend
 - **諛고룷**: Vercel
 
 ## 諛고룷 諛⑸쾿
@@ -24,8 +24,6 @@
 1. GitHub??????μ냼瑜?push
 2. [Vercel](https://vercel.com)?먯꽌 ?꾨줈?앺듃 import
 3. Environment Variables ?ㅼ젙:
-   - `SUPABASE_URL`
-   - `SUPABASE_KEY`
    - `JWT_SECRET`
    - `ENCRYPTION_KEY`
 4. Deploy

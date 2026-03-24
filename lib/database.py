@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 
-from lib.config import DATA_BACKEND, GL_MCP_TOKEN, GL_MCP_URL, SUPABASE_DB_KEY, SUPABASE_URL
+from lib.config import GL_MCP_TOKEN, GL_MCP_URL
 
 
 TABLE_ALIASES = {
@@ -52,160 +52,12 @@ LIST_HEADER_PATTERN = re.compile(r"페이지\s+(\d+)/(\d+)\s+\(총\s+(\d+)건\)"
 ROW_HEADER_PATTERN = re.compile(r"^\[(\d+)\]\s+id:\s+(.+)$")
 FIELD_PATTERN = re.compile(r"^\s{2}([^:]+):\s+(.*)$")
 
-_http_pool = None
 _client = None
-
-
-def _pg_value(val):
-    if val is None:
-        return "null"
-    if isinstance(val, bool):
-        return "true" if val else "false"
-    return str(val)
-
-
-def _get_pool():
-    global _http_pool
-    if _http_pool is None:
-        _http_pool = httpx.Client(
-            timeout=10,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-            http2=False,
-        )
-    return _http_pool
 
 
 class QueryResult:
     def __init__(self, data):
         self.data = data
-
-
-class SupabaseTable:
-    """Legacy Supabase PostgREST client kept as a fallback."""
-
-    def __init__(self, base_url: str, api_key: str):
-        self.base_url = (base_url or "").rstrip("/")
-        self.rest_url = f"{self.base_url}/rest/v1"
-        self.headers = {
-            "apikey": api_key,
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Prefer": "return=representation",
-        }
-
-    def table(self, name: str):
-        return SupabaseQueryBuilder(self.rest_url, self.headers, name)
-
-
-class SupabaseQueryBuilder:
-    def __init__(self, rest_url, headers, table):
-        self._url = f"{rest_url}/{table}"
-        self._headers = dict(headers)
-        self._params = []
-        self._method = "GET"
-        self._body = None
-
-    def select(self, columns="*"):
-        self._params.append(("select", columns))
-        self._method = "GET"
-        return self
-
-    def insert(self, data):
-        self._body = data if isinstance(data, list) else data
-        self._method = "POST"
-        return self
-
-    def update(self, data):
-        self._body = data
-        self._method = "PATCH"
-        return self
-
-    def delete(self):
-        self._method = "DELETE"
-        return self
-
-    def eq(self, col, val):
-        self._params.append((col, f"eq.{_pg_value(val)}"))
-        return self
-
-    def neq(self, col, val):
-        self._params.append((col, f"neq.{_pg_value(val)}"))
-        return self
-
-    def in_(self, col, values):
-        serialized = ",".join(str(value) for value in values)
-        self._params.append((col, f"in.({serialized})"))
-        return self
-
-    def gt(self, col, val):
-        self._params.append((col, f"gt.{_pg_value(val)}"))
-        return self
-
-    def gte(self, col, val):
-        self._params.append((col, f"gte.{_pg_value(val)}"))
-        return self
-
-    def lt(self, col, val):
-        self._params.append((col, f"lt.{_pg_value(val)}"))
-        return self
-
-    def lte(self, col, val):
-        self._params.append((col, f"lte.{_pg_value(val)}"))
-        return self
-
-    def is_(self, col, val):
-        self._params.append((col, f"is.{_pg_value(val)}"))
-        return self
-
-    def not_(self, col, op, val):
-        self._params.append((col, f"not.{op}.{_pg_value(val)}"))
-        return self
-
-    def or_(self, conditions):
-        self._params.append(("or", f"({conditions})"))
-        return self
-
-    def order(self, col, desc=False):
-        direction = "desc" if desc else "asc"
-        for index, (key, value) in enumerate(self._params):
-            if key == "order":
-                self._params[index] = ("order", f"{value},{col}.{direction}")
-                return self
-        self._params.append(("order", f"{col}.{direction}"))
-        return self
-
-    def limit(self, count):
-        self._headers["Range"] = f"0-{count - 1}"
-        return self
-
-    def execute(self):
-        pool = _get_pool()
-        params = self._params
-        if self._method == "GET":
-            response = pool.get(self._url, headers=self._headers, params=params)
-        elif self._method == "POST":
-            response = pool.post(self._url, headers=self._headers, params=params, json=self._body)
-        elif self._method == "PATCH":
-            response = pool.patch(self._url, headers=self._headers, params=params, json=self._body)
-        elif self._method == "DELETE":
-            response = pool.delete(self._url, headers=self._headers, params=params)
-        else:
-            raise ValueError(f"Unknown method: {self._method}")
-
-        if response.status_code >= 400:
-            raise Exception(f"Supabase error {response.status_code}: {response.text}")
-
-        try:
-            data = response.json()
-        except Exception:
-            data = []
-
-        if isinstance(data, dict):
-            data = [data]
-        if not isinstance(data, list):
-            data = [data] if data else []
-
-        return QueryResult(data)
 
 
 class GlMcpClient:
@@ -707,13 +559,8 @@ def _select_relation_fields(related: Optional[Dict[str, Any]], fields: List[str]
     return {field: related.get(field) for field in fields}
 
 
-def get_supabase():
+def get_database():
     global _client
     if _client is None:
-        if DATA_BACKEND == "gl":
-            if not GL_MCP_URL or not GL_MCP_TOKEN:
-                raise RuntimeError("GL backend is selected but GL_MCP_URL / GL_MCP_TOKEN is missing")
-            _client = GlMcpClient(GL_MCP_URL, GL_MCP_TOKEN)
-        else:
-            _client = SupabaseTable(SUPABASE_URL, SUPABASE_DB_KEY)
+        _client = GlMcpClient(GL_MCP_URL, GL_MCP_TOKEN)
     return _client

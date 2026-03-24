@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
 from lib.config import DATA_BACKEND
-from lib.database import get_supabase
+from lib.database import get_database
 from lib.client_sheet_sync import (
     CLIENT_SYNC_STATE,
     get_client_schema_snapshot,
@@ -89,7 +89,6 @@ async def ping():
     return {
         "status": "ok",
         "data_backend": DATA_BACKEND,
-        "supabase_url": os.getenv("SUPABASE_URL", "NOT SET")[:30],
     }
 
 
@@ -209,7 +208,7 @@ def _normalize_recurrence_weekdays(
 
 
 def _require_client_exists(client_id: str):
-    db = get_supabase()
+    db = get_database()
     client = db.table("clients").select("id").eq("id", client_id).execute()
     if not client.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -219,7 +218,7 @@ def _require_client_exists(client_id: str):
 def _get_request_user_team_id(user) -> str | None:
     if "team_id" in user:
         return user.get("team_id")
-    db = get_supabase()
+    db = get_database()
     result = db.table("users").select("team_id").eq("id", user["sub"]).limit(1).execute()
     if not result.data:
         return None
@@ -244,7 +243,7 @@ def _get_team_user_ids(team_id: str | None) -> set[str]:
     if cached and cached.get("expires_at", 0) > now_ts:
         return set(cached.get("user_ids") or [])
 
-    db = get_supabase()
+    db = get_database()
     rows = (
         db.table("users")
         .select("id")
@@ -291,7 +290,7 @@ def _can_access_event(
 
 
 def _get_accessible_event_or_404(event_id: str, user) -> Dict[str, Any]:
-    db = get_supabase()
+    db = get_database()
     result = db.table("events").select("*").eq("id", event_id).limit(1).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Event not found")
@@ -314,7 +313,7 @@ def _fetch_event_candidates(
     end_str: str,
     tasks_only: bool = False,
 ) -> List[Dict[str, Any]]:
-    db = get_supabase()
+    db = get_database()
     uid = user["sub"]
     team_id = _get_request_user_team_id(user)
     team_user_ids = _get_team_user_ids(team_id)
@@ -350,7 +349,7 @@ def _fetch_event_candidates(
 
 
 def _fetch_client_accessible_events(client_id: str, user) -> List[Dict[str, Any]]:
-    db = get_supabase()
+    db = get_database()
     uid = user["sub"]
     team_id = _get_request_user_team_id(user)
     team_user_ids = _get_team_user_ids(team_id)
@@ -406,7 +405,7 @@ def _attach_event_owner_names(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]
             stale_ids.append(user_id)
 
     if stale_ids:
-        db = get_supabase()
+        db = get_database()
         users = (
             db.table("users")
             .select("id,display_name,username")
@@ -573,7 +572,7 @@ def _build_client_write_payload(
 
 
 def _get_next_client_sort_order():
-    db = get_supabase()
+    db = get_database()
     result = db.table("clients").select("sort_order").order("sort_order", desc=True).limit(1).execute()
     if not result.data:
         return 0
@@ -597,7 +596,7 @@ def _serialize_user_preferences(row=None):
 
 
 def _get_user_preferences(user_id: str):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("user_preferences")
         .select("client_view_state, client_custom_view, url_notes")
@@ -611,7 +610,7 @@ def _get_user_preferences(user_id: str):
 
 
 def _save_user_preferences(user_id: str, payload: dict):
-    db = get_supabase()
+    db = get_database()
     existing = (
         db.table("user_preferences")
         .select("user_id")
@@ -731,7 +730,7 @@ def _validate_outbound_url(raw_url: str) -> str:
 
 @app.post("/api/setup")
 async def setup(req: SetupRequest):
-    db = get_supabase()
+    db = get_database()
     result = db.table("users").select("id").eq("is_admin", True).execute()
     if result.data:
         raise HTTPException(status_code=400, detail="Admin already exists")
@@ -756,7 +755,7 @@ async def setup(req: SetupRequest):
 
 @app.post("/api/auth/login")
 async def login(req: LoginRequest):
-    db = get_supabase()
+    db = get_database()
     result = db.table("users").select("*").eq("username", req.username).execute()
 
     if not result.data:
@@ -805,7 +804,7 @@ async def login(req: LoginRequest):
 
 @app.post("/api/auth/auto-login")
 async def auto_login(req: AutoLoginRequest):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("trusted_devices")
         .select("*, users(*)")
@@ -852,7 +851,7 @@ async def auto_login(req: AutoLoginRequest):
 
 @app.get("/api/bookmarks")
 async def get_bookmarks(user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     uid = user["sub"]
 
     own = (
@@ -877,7 +876,7 @@ async def get_bookmarks(user=Depends(get_current_user)):
 
 @app.post("/api/bookmarks")
 async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     if req.is_shared and not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Only admins can create shared bookmarks")
     if req.client_id:
@@ -904,7 +903,7 @@ async def create_bookmark(req: BookmarkCreate, user=Depends(get_current_user)):
 async def update_bookmark(
     bookmark_id: str, req: BookmarkUpdate, user=Depends(get_current_user)
 ):
-    db = get_supabase()
+    db = get_database()
     data = _explicit_model_data(req)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -928,7 +927,7 @@ async def update_bookmark(
 
 @app.delete("/api/bookmarks/{bookmark_id}")
 async def delete_bookmark(bookmark_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("bookmarks")
         .delete()
@@ -943,7 +942,7 @@ async def delete_bookmark(bookmark_id: str, user=Depends(get_current_user)):
 
 @app.patch("/api/bookmarks/{bookmark_id}/pin")
 async def toggle_pin_bookmark(bookmark_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     existing = (
         db.table("bookmarks")
         .select("is_pinned")
@@ -966,7 +965,7 @@ async def toggle_pin_bookmark(bookmark_id: str, user=Depends(get_current_user)):
 
 @app.patch("/api/bookmarks/reorder")
 async def reorder_bookmarks(req: ReorderRequest, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     for item in req.items:
         db.table("bookmarks").update({"sort_order": item["sort_order"]}).eq(
             "id", item["id"]
@@ -979,7 +978,7 @@ async def reorder_bookmarks(req: ReorderRequest, user=Depends(get_current_user))
 
 @app.get("/api/categories")
 async def get_categories(user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     own = (
         db.table("categories")
         .select("*")
@@ -1000,7 +999,7 @@ async def get_categories(user=Depends(get_current_user)):
 
 @app.post("/api/categories")
 async def create_category(req: CategoryCreate, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("categories")
         .insert(
@@ -1019,7 +1018,7 @@ async def create_category(req: CategoryCreate, user=Depends(get_current_user)):
 async def update_category(
     category_id: str, req: CategoryUpdate, user=Depends(get_current_user)
 ):
-    db = get_supabase()
+    db = get_database()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     result = (
         db.table("categories")
@@ -1035,7 +1034,7 @@ async def update_category(
 
 @app.delete("/api/categories/{category_id}")
 async def delete_category(category_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("categories")
         .delete()
@@ -1079,7 +1078,7 @@ async def check_embeddable(url: str, user=Depends(get_current_user)):
 
 @app.get("/api/health/{bookmark_id}")
 async def check_health(bookmark_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("bookmarks")
         .select("health_check_url, url")
@@ -1120,7 +1119,7 @@ async def batch_health_check(req: dict, user=Depends(get_current_user)):
     if not bookmark_ids:
         return results
 
-    db = get_supabase()
+    db = get_database()
     accessible = (
         db.table("bookmarks")
         .select("id, health_check_url, url")
@@ -1161,7 +1160,7 @@ async def batch_health_check(req: dict, user=Depends(get_current_user)):
 
 @app.get("/api/user/settings")
 async def get_settings(user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("users")
         .select("display_name, lock_enabled, lock_timeout, pin_code")
@@ -1175,7 +1174,7 @@ async def get_settings(user=Depends(get_current_user)):
 
 @app.put("/api/user/settings")
 async def update_settings(req: SettingsUpdate, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -1207,7 +1206,7 @@ async def update_user_preferences(req: UserPreferencesUpdate, user=Depends(get_c
 
 @app.put("/api/user/password")
 async def change_password(req: PasswordChange, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     user_data = (
         db.table("users").select("password_hash").eq("id", user["sub"]).execute()
     )
@@ -1226,7 +1225,7 @@ async def get_team_members(user=Depends(get_current_user)):
     if not team_id:
         return []
 
-    db = get_supabase()
+    db = get_database()
     rows = (
         db.table("users")
         .select("id, username, display_name, subteam_name, team_id")
@@ -1266,7 +1265,7 @@ async def get_team_members(user=Depends(get_current_user)):
 
 @app.get("/api/admin/users")
 async def list_users(admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("users")
         .select("id, username, display_name, is_admin, team_id, subteam_name, created_at")
@@ -1278,7 +1277,7 @@ async def list_users(admin=Depends(get_admin_user)):
 
 @app.post("/api/admin/users")
 async def create_user(req: UserCreate, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     existing = db.table("users").select("id").eq("username", req.username).execute()
     if existing.data:
         raise HTTPException(status_code=400, detail="Username already exists")
@@ -1305,7 +1304,7 @@ async def create_user(req: UserCreate, admin=Depends(get_admin_user)):
 
 @app.delete("/api/admin/users/{user_id}")
 async def delete_user(user_id: str, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     if user_id == admin["sub"]:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
     db.table("users").delete().eq("id", user_id).execute()
@@ -1314,7 +1313,7 @@ async def delete_user(user_id: str, admin=Depends(get_admin_user)):
 
 @app.post("/api/admin/users/{user_id}/reset-password")
 async def reset_password(user_id: str, req: dict, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     new_password = str(req.get("new_password") or "").strip()
     if len(new_password) < 8:
         raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
@@ -1510,7 +1509,7 @@ async def get_events(
 
 @app.post("/api/events")
 async def create_event(req: EventCreate, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     if req.client_id:
         _require_client_exists(req.client_id)
     team_id = _get_request_user_team_id(user)
@@ -1555,7 +1554,7 @@ async def create_event(req: EventCreate, user=Depends(get_current_user)):
 async def update_event(
     event_id: str, req: EventUpdate, user=Depends(get_current_user)
 ):
-    db = get_supabase()
+    db = get_database()
     existing_row = _get_accessible_event_or_404(event_id, user)
     team_id = _get_request_user_team_id(user)
     data = _explicit_model_data(req)
@@ -1655,7 +1654,7 @@ async def update_event(
 
 @app.delete("/api/events/{event_id}")
 async def delete_event(event_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     _get_accessible_event_or_404(event_id, user)
     result = (
         db.table("events")
@@ -1672,7 +1671,7 @@ async def delete_event(event_id: str, user=Depends(get_current_user)):
 async def toggle_event_done(
     event_id: str, target_date: str = None, user=Depends(get_current_user)
 ):
-    db = get_supabase()
+    db = get_database()
     row = _get_accessible_event_or_404(event_id, user)
     if row.get("recurrence_type") and target_date:
         clean_desc, completed = _parse_completed_dates(row.get("description"))
@@ -1754,14 +1753,14 @@ async def get_week_tasks(
 
 @app.get("/api/admin/teams")
 async def list_teams(admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     result = db.table("teams").select("*").order("created_at").execute()
     return result.data
 
 
 @app.post("/api/admin/teams")
 async def create_team(req: TeamCreate, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     data = {"name": req.name}
     if req.description:
         data["description"] = req.description
@@ -1771,7 +1770,7 @@ async def create_team(req: TeamCreate, admin=Depends(get_admin_user)):
 
 @app.put("/api/admin/teams/{team_id}")
 async def update_team(team_id: str, req: TeamUpdate, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -1783,7 +1782,7 @@ async def update_team(team_id: str, req: TeamUpdate, admin=Depends(get_admin_use
 
 @app.delete("/api/admin/teams/{team_id}")
 async def delete_team(team_id: str, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     result = db.table("teams").delete().eq("id", team_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Team not found")
@@ -1792,7 +1791,7 @@ async def delete_team(team_id: str, admin=Depends(get_admin_user)):
 
 @app.patch("/api/admin/users/{user_id}/team")
 async def assign_user_team(user_id: str, req: dict, admin=Depends(get_admin_user)):
-    db = get_supabase()
+    db = get_database()
     team_id = req.get("team_id")
     subteam_name = str(req.get("subteam_name") or "").strip() or None
 
@@ -1846,7 +1845,7 @@ def _decrypt(token: str) -> str:
 
 
 def _get_all_client_rows() -> List[Dict[str, Any]]:
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("clients")
         .select("*")
@@ -1858,7 +1857,7 @@ def _get_all_client_rows() -> List[Dict[str, Any]]:
 
 
 def _get_client_row_or_404(client_id: str) -> Dict[str, Any]:
-    db = get_supabase()
+    db = get_database()
     result = db.table("clients").select("*").eq("id", client_id).limit(1).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Client not found")
@@ -1905,7 +1904,7 @@ async def sync_clients(payload: ClientSyncRequest | None = None, user=Depends(ge
     _require_client_team_access(user)
     try:
         return sync_clients_from_sheet(
-            get_supabase(),
+            get_database(),
             encrypt_password=_encrypt,
             service_account_json=(payload.service_account_json if payload else None),
         )
@@ -1927,7 +1926,7 @@ async def get_client(client_id: str, user=Depends(get_current_user)):
 async def hide_client(client_id: str, user=Depends(get_current_user)):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("clients")
         .update(
@@ -1948,7 +1947,7 @@ async def hide_client(client_id: str, user=Depends(get_current_user)):
 async def unhide_client(client_id: str, user=Depends(get_current_user)):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("clients")
         .update({"hidden_local": False, "hidden_local_at": None})
@@ -1963,7 +1962,7 @@ async def unhide_client(client_id: str, user=Depends(get_current_user)):
 @app.post("/api/clients")
 async def create_client(req: ClientCreate, user=Depends(get_current_user)):
     _require_client_team_access(user)
-    db = get_supabase()
+    db = get_database()
     payload = _build_client_write_payload(req.model_dump())
     payload["sheet_row_number"] = None
     payload["last_synced_at"] = None
@@ -1976,7 +1975,7 @@ async def create_client(req: ClientCreate, user=Depends(get_current_user)):
 @app.put("/api/clients/{client_id}")
 async def update_client(client_id: str, req: ClientUpdate, user=Depends(get_current_user)):
     _require_client_team_access(user)
-    db = get_supabase()
+    db = get_database()
     existing_row = _get_client_row_or_404(client_id)
     data = _explicit_model_data(req)
     if not data:
@@ -2004,7 +2003,7 @@ async def delete_client(client_id: str, user=Depends(get_current_user)):
 async def get_client_timeline(client_id: str, user=Depends(get_current_user)):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     uid = user["sub"]
     current_user_name = user.get("display_name") or user.get("username")
 
@@ -2116,7 +2115,7 @@ async def get_client_events(client_id: str, user=Depends(get_current_user)):
 async def list_shortcuts(client_id: str, user=Depends(get_current_user)):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("client_shortcuts")
         .select("*")
@@ -2133,7 +2132,7 @@ async def create_shortcut(
 ):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     data = {
         "client_id": client_id,
         "title": req.title,
@@ -2154,7 +2153,7 @@ async def update_shortcut(
 ):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     data = {k: v for k, v in req.model_dump().items() if v is not None}
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -2176,7 +2175,7 @@ async def delete_shortcut(
 ):
     _require_client_team_access(user)
     _require_client_exists(client_id)
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("client_shortcuts")
         .delete()
@@ -2194,7 +2193,7 @@ async def delete_shortcut(
 
 @app.get("/api/memos")
 async def get_memos(user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("memos")
         .select("*")
@@ -2208,7 +2207,7 @@ async def get_memos(user=Depends(get_current_user)):
 
 @app.post("/api/memos")
 async def create_memo(req: MemoCreate, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     if req.client_id:
         _require_client_exists(req.client_id)
     data = {
@@ -2226,7 +2225,7 @@ async def create_memo(req: MemoCreate, user=Depends(get_current_user)):
 async def update_memo(
     memo_id: str, req: MemoUpdate, user=Depends(get_current_user)
 ):
-    db = get_supabase()
+    db = get_database()
     data = _explicit_model_data(req)
     if not data:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -2247,7 +2246,7 @@ async def update_memo(
 
 @app.delete("/api/memos/{memo_id}")
 async def delete_memo(memo_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     result = (
         db.table("memos")
         .delete()
@@ -2262,7 +2261,7 @@ async def delete_memo(memo_id: str, user=Depends(get_current_user)):
 
 @app.patch("/api/memos/{memo_id}/pin")
 async def toggle_pin_memo(memo_id: str, user=Depends(get_current_user)):
-    db = get_supabase()
+    db = get_database()
     current = (
         db.table("memos")
         .select("is_pinned")
