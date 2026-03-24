@@ -174,9 +174,8 @@ def sync_clients_from_sheet(
         payload = _build_client_payload(parsed, timestamp, encrypt_password=encrypt_password)
         if current:
             used_existing_ids.add(current["id"])
-            result = db.table("clients").update(payload).eq("id", current["id"]).execute()
-            if result.data:
-                existing_by_code[code] = serialize_client_row(result.data[0])
+            updated_record = db.update_record("clients", current["_pb_id"], payload)
+            existing_by_code[code] = _normalize_client_database_row(db, updated_record)
             updated += 1
         else:
             insert_payload = {
@@ -184,11 +183,10 @@ def sync_clients_from_sheet(
                 "status": "active",
                 "hidden_local": False,
             }
-            result = db.table("clients").insert(insert_payload).execute()
-            if result.data:
-                created = serialize_client_row(result.data[0])
-                existing_by_code[code] = created
-                used_existing_ids.add(created["id"])
+            created_record = db.create_record("clients", insert_payload)
+            created = _normalize_client_database_row(db, created_record)
+            existing_by_code[code] = created
+            used_existing_ids.add(created["id"])
             inserted += 1
 
     active_codes = {_normalize_key(item["client_code"]) for item in parsed_rows}
@@ -200,12 +198,14 @@ def sync_clients_from_sheet(
             continue
         if row.get("source_active") is False:
             continue
-        db.table("clients").update(
+        db.update_record(
+            "clients",
+            row["_pb_id"],
             {
                 "source_active": False,
                 "last_synced_at": timestamp,
-            }
-        ).eq("id", row["id"]).execute()
+            },
+        )
         deactivated += 1
 
     CLIENT_SYNC_STATE.update(
@@ -229,6 +229,10 @@ def sync_clients_from_sheet(
         "sheet_range": sheet["range_label"],
         "extra_fields": sheet["extra_fields"],
     }
+
+
+def _normalize_client_database_row(db, row: Dict[str, Any]) -> Dict[str, Any]:
+    return serialize_client_row(db.table("clients")._normalize_row(row))
 
 
 def _fetch_sheet_rows(service_account_json: Optional[str] = None) -> Dict[str, Any]:
