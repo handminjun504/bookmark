@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
 
+from lib.config import DATA_BACKEND
 from lib.database import get_supabase
 from lib.client_sheet_sync import (
     CLIENT_SYNC_STATE,
@@ -85,7 +86,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/api/ping")
 async def ping():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "data_backend": DATA_BACKEND,
+        "supabase_url": os.getenv("SUPABASE_URL", "NOT SET")[:30],
+    }
 
 
 # ?? Dependencies ??
@@ -761,7 +766,13 @@ async def login(req: LoginRequest):
     if not verify_password(req.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_token(user["id"], user["username"], user["is_admin"], user.get("team_id"))
+    token = create_token(
+        user["id"],
+        user["username"],
+        user["is_admin"],
+        user.get("team_id"),
+        user.get("subteam_name"),
+    )
 
     response = {
         "token": token,
@@ -770,11 +781,11 @@ async def login(req: LoginRequest):
             "username": user["username"],
             "display_name": user["display_name"],
             "is_admin": user["is_admin"],
-            "lock_enabled": user["lock_enabled"],
-            "lock_timeout": user["lock_timeout"],
-            "pin_code": user["pin_code"],
-            "team_id": user.get("team_id"),
-            "subteam_name": user.get("subteam_name"),
+            "lock_enabled": user.get("lock_enabled", False),
+            "lock_timeout": user.get("lock_timeout", 300),
+            "pin_code": user.get("pin_code", ""),
+            "team_id": user.get("team_id", ""),
+            "subteam_name": user.get("subteam_name", ""),
         },
     }
 
@@ -812,7 +823,13 @@ async def auto_login(req: AutoLoginRequest):
         {"last_used": datetime.now(timezone.utc).isoformat()}
     ).eq("id", device["id"]).execute()
 
-    token = create_token(user["id"], user["username"], user["is_admin"], user.get("team_id"))
+    token = create_token(
+        user["id"],
+        user["username"],
+        user["is_admin"],
+        user.get("team_id"),
+        user.get("subteam_name"),
+    )
 
     return {
         "token": token,
@@ -821,11 +838,11 @@ async def auto_login(req: AutoLoginRequest):
             "username": user["username"],
             "display_name": user["display_name"],
             "is_admin": user["is_admin"],
-            "lock_enabled": user["lock_enabled"],
-            "lock_timeout": user["lock_timeout"],
-            "pin_code": user["pin_code"],
-            "team_id": user.get("team_id"),
-            "subteam_name": user.get("subteam_name"),
+            "lock_enabled": user.get("lock_enabled", False),
+            "lock_timeout": user.get("lock_timeout", 300),
+            "pin_code": user.get("pin_code", ""),
+            "team_id": user.get("team_id", ""),
+            "subteam_name": user.get("subteam_name", ""),
         },
     }
 
