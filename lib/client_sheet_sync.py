@@ -61,6 +61,7 @@ _KNOWN_HEADER_MAP = {
     "경리나라비밀번호": "gyeongli_password",
     "경리나라(id)": "gyeongli_id",
     "경리나라(pw)": "gyeongli_password",
+    "특이사항": "memo",
     "메모": "memo",
     "종료일": _RAW_END_DATE,
     "계약종료": _RAW_END_DATE,
