@@ -41,20 +41,29 @@ _RAW_END_DATE = "__sheet_end_date"
 
 _KNOWN_HEADER_MAP = {
     "코드": "client_code",
+    "code": "client_code",
     "거래처명": "name",
+    "업체명": "name",
     "경리팀담당자": "owner_name",
+    "담당자": "owner_name",
     "기업내부담당자": "company_contact_name",
     "기업담당연락처": "phone",
+    "대표연락처": "phone",
     "기업담당이메일": "email",
+    "이메일": "email",
     "최근접촉일": "last_contact_at",
     "다음액션제목": "next_action_title",
     "다음액션예정일": "next_action_at",
     "사업자번호": "business_number",
     "대표": "ceo_name",
+    "대표자": "ceo_name",
     "경리나라아이디": "gyeongli_id",
     "경리나라비밀번호": "gyeongli_password",
+    "경리나라(id)": "gyeongli_id",
+    "경리나라(pw)": "gyeongli_password",
     "메모": "memo",
     "종료일": _RAW_END_DATE,
+    "계약종료": _RAW_END_DATE,
 }
 
 CLIENT_SYNC_STATE: Dict[str, Any] = {
@@ -452,6 +461,8 @@ def _parse_sheet_row(headers: List[str], values: List[Any], row_number: int) -> 
     row["business_number"] = _normalize_cell(row.get("business_number")) or None
     row["ceo_name"] = _normalize_cell(row.get("ceo_name")) or None
     row["next_action_title"] = _normalize_cell(row.get("next_action_title")) or None
+    if row.get("name") and "(종료)" in str(row["name"]):
+        row["source_active"] = False
     return row
 
 
@@ -526,7 +537,7 @@ def _extract_legacy_code(memo: Any) -> str:
 
 
 def _normalize_header(value: Any) -> str:
-    return re.sub(r"\s+", "", str(value or "")).strip()
+    return re.sub(r"\s+", "", str(value or "")).strip().lower()
 
 
 def _normalize_cell(value: Any) -> str:
