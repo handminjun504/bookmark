@@ -782,7 +782,7 @@ async def login(req: LoginRequest):
             "is_admin": user["is_admin"],
             "lock_enabled": user.get("lock_enabled", False),
             "lock_timeout": user.get("lock_timeout", 300),
-            "pin_code": user.get("pin_code", ""),
+            "has_pin": bool(user.get("pin_code")),
             "team_id": user.get("team_id", ""),
             "subteam_name": user.get("subteam_name", ""),
         },
@@ -839,7 +839,7 @@ async def auto_login(req: AutoLoginRequest):
             "is_admin": user["is_admin"],
             "lock_enabled": user.get("lock_enabled", False),
             "lock_timeout": user.get("lock_timeout", 300),
-            "pin_code": user.get("pin_code", ""),
+            "has_pin": bool(user.get("pin_code")),
             "team_id": user.get("team_id", ""),
             "subteam_name": user.get("subteam_name", ""),
         },
@@ -848,6 +848,24 @@ async def auto_login(req: AutoLoginRequest):
 
 # ?? Bookmarks ??
 
+
+
+@app.post("/api/user/unlock")
+async def unlock_screen(req: dict, user=Depends(get_current_user)):
+    pin = req.get("pin", "")
+    db = get_database()
+    result = (
+        db.table("users")
+        .select("pin_code")
+        .eq("id", user["sub"])
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    stored = result.data[0].get("pin_code") or ""
+    if not stored or pin != stored:
+        raise HTTPException(status_code=401, detail="Invalid PIN")
+    return {"ok": True}
 
 @app.get("/api/bookmarks")
 async def get_bookmarks(user=Depends(get_current_user)):

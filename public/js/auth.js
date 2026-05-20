@@ -47,6 +47,17 @@ const Auth = (() => {
     return data;
   }
 
+  function _parseJwtExp(token) {
+    try {
+      return JSON.parse(atob(token.split('.')[1])).exp;
+    } catch { return null; }
+  }
+
+  function _isTokenExpired(token) {
+    const exp = _parseJwtExp(token);
+    return exp ? Date.now() / 1000 > exp : true;
+  }
+
   async function autoLogin() {
     const deviceToken = localStorage.getItem('device_token');
     if (!deviceToken) return null;
@@ -62,7 +73,7 @@ const Auth = (() => {
       startLockTimer();
       return data;
     } catch {
-      localStorage.removeItem('device_token');
+      // 네트워크 오류 시 device_token 유지 (의도적 삭제는 logout에서만)
       return null;
     }
   }
@@ -70,21 +81,23 @@ const Auth = (() => {
   function restoreSession() {
     const token = sessionStorage.getItem('token');
     const user = sessionStorage.getItem('user');
-    if (token && user) {
+    if (token && user && !_isTokenExpired(token)) {
       _token = token;
       _user = JSON.parse(user);
       startLockTimer();
       return true;
     }
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('user');
     return false;
   }
 
-  function logout() {
+  function logout(forgetDevice = true) {
     _token = null;
     _user = null;
     sessionStorage.removeItem('token');
     sessionStorage.removeItem('user');
-    localStorage.removeItem('device_token');
+    if (forgetDevice) localStorage.removeItem('device_token');
     stopLockTimer();
     if (window.electronAPI?.clearPasswordUser) {
       window.electronAPI.clearPasswordUser();
@@ -126,7 +139,7 @@ const Auth = (() => {
   }
 
   function showLockScreen() {
-    if (!_user?.pin_code) return;
+    if (!_user?.has_pin) return;
     const el = document.getElementById('lock-screen');
     if (!el || !el.classList.contains('hidden')) return;
     el.classList.remove('hidden');
@@ -134,9 +147,11 @@ const Auth = (() => {
     if (pinInput) { pinInput.value = ''; pinInput.focus(); }
   }
 
-  function tryUnlock(pin) {
-    if (!_user?.pin_code) return true;
-    return pin === _user.pin_code;
+  async function tryUnlock(pin) {
+    try {
+      await request('/user/unlock', { method: 'POST', body: JSON.stringify({ pin }) });
+      return true;
+    } catch { return false; }
   }
 
   return {

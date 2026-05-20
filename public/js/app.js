@@ -190,7 +190,7 @@ async function init() {
     const id = ++dynTabIdCounter;
     let hostname = '';
     try { hostname = new URL(url).hostname; } catch {}
-    const tab = { id, url, title: title || hostname || url, containerId: containerId || null, lastActive: Date.now(), hibernated: false };
+    const tab = { id, url, title: title || hostname || url, containerId: containerId || null, lastActive: Date.now(), hibernated: false, autoFilled: false };
     dynTabs.push(tab);
 
     const container = document.getElementById('dynamic-tabs');
@@ -567,13 +567,16 @@ async function init() {
       });
       frame.addEventListener('did-navigate', (e) => {
         if (tab.hibernated) return;
-        tab.url = e.url;
+        // about:blank는 크래시/슬립 시 발생 — 원래 URL 보존
+        if (e.url && e.url !== 'about:blank') {
+          tab.url = e.url;
+          tab.autoFilled = false; // 새 페이지 진입 시 자동 입력 초기화
+        }
         if (activeDynTabId === id) {
           const bar = framesContainer.querySelector('#dtf-url-input');
-          if (bar) bar.value = e.url;
+          if (bar) bar.value = tab.url;
         }
-        autoFillWebview(frame, e.url);
-        updateWebviewTabInfo(id, e.url, tab.title, activeDynTabId === id);
+        updateWebviewTabInfo(id, tab.url, tab.title, activeDynTabId === id);
       });
       frame.addEventListener('did-navigate-in-page', (e) => {
         if (tab.hibernated) return;
@@ -585,8 +588,20 @@ async function init() {
         updateWebviewTabInfo(id, e.url, undefined, undefined);
       });
       frame.addEventListener('dom-ready', () => {
-        autoFillWebview(frame, url);
+        // 현재 URL 기준으로 자동 입력 (리다이렉트 후에도 정확한 호스트명)
+        if (!tab.autoFilled) {
+          const currentUrl = frame.getURL?.() || url;
+          autoFillWebview(frame, currentUrl);
+          tab.autoFilled = true;
+        }
         registerWebviewTab(id, tab.url, tab.title, activeDynTabId === id);
+      });
+      // 웹뷰 프로세스 종료(절전·크래시) 시 원래 URL로 복구
+      frame.addEventListener('render-process-gone', () => {
+        tab.autoFilled = false;
+        if (tab.url && tab.url !== 'about:blank') {
+          setTimeout(() => { frame.src = tab.url; }, 1000);
+        }
       });
       frame.addEventListener('did-start-loading', () => {
         const dot = document.querySelector(`.dyn-tab[data-dyn-id="${id}"] .dyn-tab-loading`);
@@ -607,7 +622,10 @@ async function init() {
           const data = e.args[0];
           showPwSaveBar(data, frame);
         } else if (e.channel === 'pw-detected') {
-          autoFillWebview(frame, frame.getURL?.() || url);
+          if (!tab.autoFilled) {
+            autoFillWebview(frame, frame.getURL?.() || url);
+            tab.autoFilled = true;
+          }
         } else if (e.channel === 'nav-back') {
           if (frame.canGoBack()) frame.goBack();
         } else if (e.channel === 'nav-forward') {
